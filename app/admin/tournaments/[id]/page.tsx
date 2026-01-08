@@ -550,6 +550,13 @@ export default function AdminTournamentPage() {
 
     const registered = useMemo(() => rows.filter((r) => r.status === "REGISTERED"), [rows]);
 
+    const registeredCount = registered.length;
+    // Pentru formatul "Inferioare → Superioare → KO": dacă sunt 3–9 jucători,
+    // nu se pot face grupe superioare (nu sunt suficienți calificați). În acest caz,
+    // rulăm identic cu modul "Grupe → KO direct" (folosim doar grupele inferioare).
+    const forceGroupsKo = format === "LOWER_UPPER_KO" && registeredCount >= 3 && registeredCount <= 9;
+
+
     // Participanți derivați din rows (și sortați)
     useEffect(() => {
         const list = registered
@@ -576,8 +583,8 @@ export default function AdminTournamentPage() {
         setParticipants(list);
     }, [registered]);
 
-    const registeredCount = participants.length;
-    const spotsLeft = typeof maxPlayers === "number" ? Math.max(0, maxPlayers - registeredCount) : null;
+    const participantCount = participants.length;
+    const spotsLeft = typeof maxPlayers === "number" ? Math.max(0, maxPlayers - participantCount) : null;
 
     async function setTournamentStatusSafe(next: "UPCOMING" | "LIVE" | "FINISHED" | "CANCELLED") {
         const { error } = await supabase.from("tournaments").update({ status: next }).eq("id", tournamentId);
@@ -1025,6 +1032,7 @@ export default function AdminTournamentPage() {
     }
 
     async function generateUpperGroupsFromLowerTop4() {
+        if (forceGroupsKo) return alert("Sunt " + registeredCount + " jucători înscriși. Pentru 3–9 jucători nu se pot genera grupe superioare; turneul rulează ca «Grupe → KO direct».");
         if (groupsLower.length === 0) return
         if (groupsUpper.length > 0) return
         const anyMissingRank = groupsLower.some((g) => g.members.some((m) => m.rank_in_group == null));
@@ -1067,7 +1075,7 @@ export default function AdminTournamentPage() {
 
     async function generateKORound1() {
         if (matchesKO.length > 0) return
-        const isGroupsKo = format === "GROUPS_KO";
+        const isGroupsKo = format === "GROUPS_KO" || forceGroupsKo;
         const sourceGroups = isGroupsKo ? groupsLower : groupsUpper;
 
         if (sourceGroups.length === 0) return
@@ -1410,7 +1418,7 @@ export default function AdminTournamentPage() {
     }, [participants, matchesKO, podium, groupsUpper, groupsLower]);
 
 
-    const isGroupsKo = format === "GROUPS_KO";
+    const isGroupsKo = format === "GROUPS_KO" || forceGroupsKo;
 
     useEffect(() => {
         load().then(() => {
@@ -1432,7 +1440,7 @@ export default function AdminTournamentPage() {
                 <div>
                     <h1 style={{ fontSize: 22, fontWeight: 800 }}>Admin • {title || "Turneu"}</h1>
                     <div style={{ opacity: 0.8, fontSize: 13 }}>
-                        Format: {format === "LOWER_UPPER_KO" ? "Inferioare → Superioare → KO" : "Grupe → KO direct"} • Grupe: {groupsLower.length} • Superioare:{" "}
+                        Format: {format === "LOWER_UPPER_KO" ? "Inferioare → Superioare → KO" : "Grupe → KO direct"}{forceGroupsKo ? " (fallback: Grupe → KO direct pentru 3–9 jucători)" : ""} • Grupe: {groupsLower.length} • Superioare:{" "}
                         {groupsUpper.length} • KO: {matchesKO.length} meciuri
                     </div>
                 </div>
