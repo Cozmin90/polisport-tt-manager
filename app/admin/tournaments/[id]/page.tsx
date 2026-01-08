@@ -872,7 +872,7 @@ export default function AdminTournamentPage() {
 
     async function generateGroupMatchesWithRounds(stage: "LOWER_GROUP" | "UPPER_GROUP", groups: GroupWithMembers[], existingCount: number) {
         if (groups.length === 0) return
-        if (existingCount > 0) return
+        if (existingCount > 0) return alert("Meciurile pentru această etapă au fost deja generate.")
         const inserts: any[] = [];
 
         for (const g of groups) {
@@ -1802,6 +1802,93 @@ export default function AdminTournamentPage() {
                                                 })}
                                         </tbody>
                                     </table>
+
+                                    {/* Meciuri - în interiorul grupei (superioare) */}
+                                    {(() => {
+                                        const groupMatches = matchesUpper
+                                            .filter((m) => m.group_id === g.id)
+                                            .sort((a, b) => (a.round ?? 1) - (b.round ?? 1));
+
+                                        const maxRound = groupMatches.reduce((acc, m) => Math.max(acc, m.round ?? 1), 1);
+
+                                        if (groupMatches.length === 0) return null;
+
+                                        return (
+                                            <div style={{ marginTop: 12 }}>
+                                                <div style={{ fontWeight: 900, marginBottom: 8 }}>Meciuri (ordine pe runde)</div>
+
+                                                {Array.from({ length: maxRound }, (_, i) => i + 1).map((r) => {
+                                                    const roundMatches = groupMatches.filter((m) => (m.round ?? 1) === r);
+
+                                                    return (
+                                                        <div key={r} style={{ marginTop: 10 }}>
+                                                            <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 900 }}>Runda {r}</div>
+
+                                                            <div
+                                                                style={{
+                                                                    display: "grid",
+                                                                    gap: 8,
+                                                                    marginTop: 6,
+                                                                    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                                                                    justifyItems: "stretch",
+                                                                    width: "100%",
+                                                                    justifyContent: "stretch",
+                                                                }}
+                                                            >
+                                                                {roundMatches.map((m) => (
+                                                                    <div key={m.id} style={{ border: "1px solid #eee", borderRadius: 10, padding: 10 }}>
+                                                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                                                                            <div style={{ fontSize: 14 }}>
+                                                                                <b>{m.p1?.full_name ?? "P1"}</b> vs{" "}
+                                                                                <b>{m.p2?.full_name ?? (m.player2_id ? "P2" : "BYE")}</b>
+                                                                            </div>
+
+                                                                            {m.player1_id && (
+                                                                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                                                                    {m.player2_id ? (
+                                                                                        <>
+                                                                                            <input
+                                                                                                type="number"
+                                                                                                inputMode="numeric"
+                                                                                                min={0}
+                                                                                                value={getDraftAB(m.id, m.score).a}
+                                                                                                onChange={(e) => setDraftA(m.id, e.target.value)}
+                                                                                                placeholder="3"
+                                                                                                style={{ padding: 8, border: "1px solid #ddd", width: 44, textAlign: "center", borderRadius: 8 }}
+                                                                                            />
+                                                                                            <span style={{ opacity: 0.7 }}>-</span>
+                                                                                            <input
+                                                                                                type="number"
+                                                                                                inputMode="numeric"
+                                                                                                min={0}
+                                                                                                value={getDraftAB(m.id, m.score).b}
+                                                                                                onChange={(e) => setDraftB(m.id, e.target.value)}
+                                                                                                placeholder="1"
+                                                                                                style={{ padding: 8, border: "1px solid #ddd", width: 44, textAlign: "center", borderRadius: 8 }}
+                                                                                            />
+                                                                                        </>
+                                                                                    ) : (
+                                                                                        <span style={{ fontSize: 12, opacity: 0.8 }}>BYE</span>
+                                                                                    )}
+
+                                                                                    <button
+                                                                                        onClick={() => saveScoreFromDraft(m)}
+                                                                                        style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd" }}
+                                                                                    >
+                                                                                        Save
+                                                                                    </button>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             ))
                         )}
