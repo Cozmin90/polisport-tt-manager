@@ -388,6 +388,8 @@ export default function AdminTournamentPage() {
 
     const [scoreDraft, setScoreDraft] = useState<Record<string, { a: string; b: string }>>({});
     const [showFinalRanking, setShowFinalRanking] = useState(false);
+    const [savingPlaces, setSavingPlaces] = useState(false);
+    const [placesSavedAt, setPlacesSavedAt] = useState<string | null>(null);
 
     function getDraftAB(matchId: string, currentScore: string | null) {
         const d = scoreDraft[matchId];
@@ -1417,6 +1419,69 @@ export default function AdminTournamentPage() {
         return sorted;
     }, [participants, matchesKO, podium, groupsUpper, groupsLower]);
 
+    // ✅ Salvează locul final în DB (registrations.final_place) + opțional etichetă KO (registrations.ko_label)
+    // Necesită coloane:
+    //  - registrations.final_place int
+    //  - registrations.ko_label text (opțional)
+    async function persistFinalPlacesToRegistrations() {
+        if (!tournamentId) return;
+        if (!champion || !showFinalRanking) {
+            alert("Locurile pot fi salvate doar după ce există campion și ai generat clasamentul final.");
+            return;
+        }
+        if (!overallRanking || overallRanking.length === 0) {
+            alert("Nu există clasament de salvat.");
+            return;
+        }
+
+        const ok = window.confirm("Vrei să salvezi locurile din clasamentul final în DB (registrations.final_place)?");
+        if (!ok) return;
+
+        setSavingPlaces(true);
+        setPlacesSavedAt(null);
+
+        try {
+            for (let idx = 0; idx < overallRanking.length; idx++) {
+                const p = overallRanking[idx] as any;
+
+                const koLabel =
+                    p.finalPlace === 1
+                        ? "Campion"
+                        : p.finalPlace === 2
+                            ? "Finalist"
+                            : p.finalPlace === 3
+                                ? "Semifinale"
+                                : p.koRound
+                                    ? `Runda ${p.koRound}`
+                                    : null;
+
+                const { error } = await supabase
+                    .from("registrations")
+                    .update(
+                        {
+                            final_place: idx + 1,
+                            ko_label: koLabel,
+                        } as any
+                    )
+                    .eq("tournament_id", tournamentId)
+                    .eq("player_id", p.id);
+
+                if (error) {
+                    console.error("persistFinalPlaces error for", p?.id, error);
+                    throw new Error(`Eroare salvare pentru ${p?.name ?? p?.id}: ${error.message}`);
+                }
+            }
+
+            setPlacesSavedAt(new Date().toLocaleString("ro-RO"));
+            alert("✅ Locurile au fost salvate în DB (registrations.final_place / ko_label).");
+        } catch (e: any) {
+            alert(e?.message ?? "Eroare salvare locuri.");
+        } finally {
+            setSavingPlaces(false);
+        }
+    }
+
+
 
     const isGroupsKo = format === "GROUPS_KO" || forceGroupsKo;
 
@@ -1971,7 +2036,7 @@ export default function AdminTournamentPage() {
 
                                 {r === matchesKOByRound.rounds[matchesKOByRound.rounds.length - 1] && champion && !showFinalRanking ? (
                                     <div style={{ marginTop: 12 }}>
-                                        <button style={{ padding: "8pxCE 12px", borderRadius: 10, border: "1px solid #ddd" }}
+                                        <button style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}
                                             onClick={() => {
                                                 localStorage.setItem(
                                                     `showRanking_${tournamentId}`,
@@ -1998,6 +2063,29 @@ export default function AdminTournamentPage() {
             {showFinalRanking && champion ? (
                 <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
                     <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Clasament total (toți înscrișii)</h2>
+                    <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                        <button
+                            onClick={persistFinalPlacesToRegistrations}
+                            disabled={savingPlaces}
+                            style={{
+                                padding: "8px 12px",
+                                borderRadius: 10,
+                                border: "1px solid #ddd",
+                                fontWeight: 900,
+                                cursor: savingPlaces ? "not-allowed" : "pointer",
+                                opacity: savingPlaces ? 0.6 : 1,
+                            }}
+                            title="Scrie în registrations.final_place locul din clasament (și ko_label)."
+                        >
+                            {savingPlaces ? "Se salvează..." : "Salvează locurile în DB"}
+                        </button>
+
+                        {placesSavedAt ? (
+                            <span style={{ fontSize: 12, opacity: 0.75 }}>
+                                Salvat la: <b>{placesSavedAt}</b>
+                            </span>
+                        ) : null}
+                    </div>
 
                     {overallRanking.length === 0 ? (
                         <div style={{ marginTop: 10, opacity: 0.8 }}>Nu există participanți.</div>

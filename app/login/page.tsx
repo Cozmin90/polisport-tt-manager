@@ -1,147 +1,114 @@
 ﻿"use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 
 type Mode = "login" | "register";
 
+const inputStyle: React.CSSProperties = {
+    padding: "12px 14px",
+    borderRadius: 12,
+    border: "2px solid #fff",
+    background: "transparent",
+    color: "inherit",
+    outline: "none",
+};
+
+const buttonStyle: React.CSSProperties = {
+    padding: "12px 14px",
+    borderRadius: 12,
+    border: "2px solid #fff",
+    background: "transparent",
+    fontWeight: 900,
+    cursor: "pointer",
+};
+
 export default function LoginPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
 
-    const [mode, setMode] = useState<Mode>("login");
+    const initialMode = (searchParams.get("mode") as Mode) || "login";
+    const [mode, setMode] = useState<Mode>(initialMode);
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
 
-    // register extras
-    const [firstName, setFirstName] = useState(""); // Prenume
-    const [lastName, setLastName] = useState("");  // Nume
+    const [firstName, setFirstName] = useState("");
+    const [lastName, setLastName] = useState("");
     const [hasAmatur, setHasAmatur] = useState(false);
-    const [amaturMp, setAmaturMp] = useState<string>("");
+    const [amaturMp, setAmaturMp] = useState("");
 
     const [msg, setMsg] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
 
-    function displayNameLN_FN() {
-        const ln = lastName.trim();
-        const fn = firstName.trim();
-        return `${ln} ${fn}`.trim(); // "Nume Prenume"
-    }
+    useEffect(() => {
+        const m = (searchParams.get("mode") as Mode) || "login";
+        setMode(m);
+    }, [searchParams]);
 
     async function ensurePlayerProfile() {
-        const { data: authData, error: gErr } = await supabase.auth.getUser();
-        if (gErr) throw gErr;
-
-        const u = authData?.user;
-        if (!u) throw new Error("Nu există user autentificat.");
+        const { data, error } = await supabase.auth.getUser();
+        if (error) throw error;
+        const u = data.user;
+        if (!u) throw new Error("No user");
 
         const meta: any = u.user_metadata ?? {};
-        const fn = (meta.first_name ?? "").toString().trim();
-        const ln = (meta.last_name ?? "").toString().trim();
-        const dn = (meta.display_name ?? `${ln} ${fn}`.trim()).toString().trim();
+        const fn = meta.first_name ?? "";
+        const ln = meta.last_name ?? "";
+        const dn = meta.display_name ?? `${ln} ${fn}`.trim();
 
-        const hasAmatur = !!meta.has_amatur_account;
-        const mpRaw = meta.amatur_mp;
-        const mp = mpRaw === null || mpRaw === undefined || mpRaw === "" ? null : Number(mpRaw);
-        const mpInt = Number.isFinite(mp) && mp! >= 0 ? Math.floor(mp!) : null;
-
-        // UPSERT în players (acum ai sesiune => RLS permite id=auth.uid)
-        const { error: pErr } = await supabase.from("players").upsert({
+        await supabase.from("players").upsert({
             id: u.id,
             first_name: fn || null,
             last_name: ln || null,
             display_name: dn || null,
-            full_name: dn || "Utilizator", // fiind NOT NULL la tine
-            has_amatur_account: hasAmatur,
-            amatur_mp: mpInt,
+            full_name: dn || "Utilizator",
+            has_amatur_account: !!meta.has_amatur_account,
+            amatur_mp: meta.amatur_mp ?? null,
         });
-
-        if (pErr) throw pErr;
     }
 
     async function doLogin() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-            setMsg(error.message);
-            return;
-        }
-
-        try {
-            await ensurePlayerProfile();
-        } catch (e: any) {
-            console.error(e);
-            setMsg("Login OK, dar profilul nu s-a putut crea: " + (e?.message ?? ""));
-        }
-
+        if (error) return setMsg(error.message);
+        await ensurePlayerProfile();
         router.push("/");
     }
 
     async function doRegister() {
-        const ln = lastName.trim();
-        const fn = firstName.trim();
-
-        if (!ln) return setMsg("Te rog completează Nume.");
-        if (!fn) return setMsg("Te rog completează Prenume.");
+        if (!lastName.trim()) return setMsg("Te rog completează Nume.");
+        if (!firstName.trim()) return setMsg("Te rog completează Prenume.");
 
         let mp: number | null = null;
         if (hasAmatur) {
-            const v = amaturMp.trim();
-            if (v.length === 0) return setMsg("Te rog completează MP (punctele) dacă ai cont pe Amatur.");
-            const n = Number(v);
-            if (!Number.isFinite(n) || n < 0) return setMsg("MP trebuie să fie un număr >= 0.");
+            const n = Number(amaturMp);
+            if (!Number.isFinite(n) || n < 0) return setMsg("MP invalid.");
             mp = Math.floor(n);
         }
 
-        const { data, error: regError } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
             email,
             password,
             options: {
                 data: {
-                    first_name: fn,
-                    last_name: ln,
-                    display_name: `${fn} ${ln}`.trim(),
+                    first_name: firstName.trim(),
+                    last_name: lastName.trim(),
+                    display_name: `${firstName} ${lastName}`.trim(),
                     has_amatur_account: hasAmatur,
                     amatur_mp: mp,
                 },
             },
         });
 
-        if (regError) {
-            setMsg(regError.message);
-            return;
-        }
+        if (error) return setMsg(error.message);
 
-        // user poate fi null dacă proiectul cere confirmare email, dar de obicei există
-        const userId = data.user?.id ?? null;
-
-        // Dacă nu avem userId, nu putem crea profilul în players acum.
-        // Îi spunem userului să confirme email și apoi să facă login.
-        if (!userId) {
-            setMsg("Cont creat. Verifică emailul (dacă e necesar) și apoi fă login.");
-            return;
-        }
-
-        const name = displayNameLN_FN();
-
-
-        // Dacă email confirmation e ON, session poate fi null.
-        // În cazul ăsta, profilul îl creăm la primul login (când există sesiune).
         if (!data.session) {
-            setMsg("Cont creat. Verifică emailul (confirmare) și apoi fă login. Profilul se va crea automat la primul login.");
-            return;
+            return setMsg("Cont creat. Verifică emailul și apoi fă login.");
         }
 
-        // Dacă există sesiune (confirmare OFF), putem crea profilul acum:
         await ensurePlayerProfile();
-        router.push("/");
-
-        if (pErr) {
-            setMsg("Cont creat, dar profilul (players) nu a putut fi salvat: " + pErr.message);
-            return;
-        }
-
-        // În unele configurații ești deja logat după signUp; dacă nu, userul va face login.
         router.push("/");
     }
 
@@ -150,8 +117,7 @@ export default function LoginPage() {
         setMsg(null);
         setBusy(true);
         try {
-            if (mode === "login") await doLogin();
-            else await doRegister();
+            mode === "login" ? await doLogin() : await doRegister();
         } finally {
             setBusy(false);
         }
@@ -159,108 +125,47 @@ export default function LoginPage() {
 
     return (
         <main style={{ maxWidth: 520, margin: "0 auto", padding: 24 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 900 }}>PoliSport TT-Manager</h1>
-
-            <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
-                <button
-                    type="button"
-                    onClick={() => { setMode("login"); setMsg(null); }}
-                    style={{
-                        padding: "10px 14px",
-                        borderRadius: 10,
-                        border: "1px solid #ddd",
-                        fontWeight: 800,
-                        background: mode === "login" ? "black" : "black",
-                    }}
-                >
-                    Login
-                </button>
-
-                <button
-                    type="button"
-                    onClick={() => { setMode("register"); setMsg(null); }}
-                    style={{
-                        padding: "10px 14px",
-                        borderRadius: 10,
-                        border: "1px solid #ddd",
-                        fontWeight: 800,
-                        background: mode === "register" ? "black" : "black",
-                    }}
-                >
-                    Register
-                </button>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <h1 style={{ fontSize: 22, fontWeight: 900 }}>
+                    {mode === "login" ? "Login" : "Register"}
+                </h1>
+                <Link href="/" style={{ fontSize: 13 }}>← Acasă</Link>
             </div>
 
-            <form onSubmit={onSubmit} style={{ marginTop: 16, display: "grid", gap: 10 }}>
+            <div style={{ marginTop: 12 }}>
+                {mode === "login" ? (
+                    <Link href="/login?mode=register" style={{ fontSize: 13 }}>
+                        Nu ai cont? Creează unul
+                    </Link>
+                ) : (
+                    <Link href="/login?mode=login" style={{ fontSize: 13 }}>
+                        Ai deja cont? Login
+                    </Link>
+                )}
+            </div>
+
+            <form onSubmit={onSubmit} style={{ marginTop: 20, display: "grid", gap: 12 }}>
                 {mode === "register" && (
                     <>
-                        <input
-                            placeholder="Nume"
-                            value={lastName}
-                            onChange={(e) => setLastName(e.target.value)}
-                            style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #ddd" }}
-                        />
-                        <input
-                            placeholder="Prenume"
-                            value={firstName}
-                            onChange={(e) => setFirstName(e.target.value)}
-                            style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #ddd" }}
-                        />
-
-                        <label style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
-                            <input
-                                type="checkbox"
-                                checked={hasAmatur}
-                                onChange={(e) => setHasAmatur(e.target.checked)}
-                            />
-                            <span>Am cont și puncte în Circuitul Amatur</span>
+                        <input style={inputStyle} placeholder="Nume" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+                        <input style={inputStyle} placeholder="Prenume" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+                        <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 14 }}>
+                            <input type="checkbox" checked={hasAmatur} onChange={(e) => setHasAmatur(e.target.checked)} />
+                            Am cont Amatur
                         </label>
-
-                        {hasAmatur && (
-                            <input
-                                placeholder="MP (puncte Amatur) – ex: 1234"
-                                value={amaturMp}
-                                onChange={(e) => setAmaturMp(e.target.value)}
-                                style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #ddd" }}
-                            />
-                        )}
+                        {hasAmatur && <input style={inputStyle} placeholder="MP Amatur" value={amaturMp} onChange={(e) => setAmaturMp(e.target.value)} />}
                     </>
                 )}
 
-                <input
-                    placeholder="Email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #ddd" }}
-                />
-                <input
-                    placeholder="Parolă"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #ddd" }}
-                />
+                <input style={inputStyle} placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <input style={inputStyle} placeholder="Parolă" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
 
-                <button
-                    disabled={busy}
-                    style={{
-                        marginTop: 6,
-                        padding: "10px 14px",
-                        borderRadius: 10,
-                        border: "1px solid #ddd",
-                        fontWeight: 900,
-                        opacity: busy ? 0.6 : 1,
-                    }}
-                >
+                <button style={{ ...buttonStyle, opacity: busy ? 0.6 : 1 }} disabled={busy}>
                     {mode === "login" ? "Login" : "Creează cont"}
                 </button>
             </form>
 
-            {msg && <p style={{ marginTop: 12, opacity: 0.9 }}>{msg}</p>}
-
-            <p style={{ marginTop: 14, fontSize: 12, opacity: 0.7, lineHeight: 1.4 }}>
-                Notă: Dacă proiectul tău are confirmare email activată, după Register vei primi un email și va trebui să confirmi înainte de login.
-            </p>
+            {msg && <p style={{ marginTop: 14 }}>{msg}</p>}
         </main>
     );
 }
