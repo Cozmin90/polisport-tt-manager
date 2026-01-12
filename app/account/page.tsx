@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -22,16 +22,26 @@ type TournamentRow = {
     status: string;
     format: string;
     location: string | null;
+
+    // ✅ as you said: tournaments.category
+    category?: string | null; // e.g. OPEN / HOBBY / AVANSATI / ELITE
+
+    is_rated?: boolean | null;
 };
 
-// We select registrations with "*" so the page won't break if you later add new columns like final_place.
-// (We do NOT list unknown columns explicitly, because Supabase would error if they don't exist yet.)
 type MyRegRow = {
     tournament_id: string;
     status: string | null;
-    // optional (recommended to add later)
-    final_place?: number | null;
-    ko_label?: string | null; // e.g., "Campion", "Finalist", "Semifinale"
+
+    // Persisted at tournament finalization
+    final_place?: number | string | null;
+
+    // Persisted at tournament finalization
+    mp_turneu?: number | null;
+
+
+    // ZV (0 victorii) - nu intră în medie
+    is_zv?: boolean | null;
     tournaments?: TournamentRow | null;
 };
 
@@ -48,18 +58,6 @@ function formatRO(iso: string) {
     } catch {
         return iso;
     }
-}
-
-// Temporary fallback: map status of registration -> text
-function mapPlaceFallback(status: string | null | undefined) {
-    if (!status) return "—";
-    const s = status.toLowerCase();
-    if (s === "winner" || s === "champion" || s === "1") return "Locul 1";
-    if (s === "finalist" || s === "runner_up" || s === "runner-up" || s === "2") return "Locul 2";
-    if (s === "semi_finalist" || s === "semifinalist" || s === "3") return "Locul 3";
-    if (s === "completed") return "Participant";
-    if (s === "registered" || s === "inscris" || s === "înscris") return "Înscris";
-    return "—";
 }
 
 const navBtn: React.CSSProperties = {
@@ -82,11 +80,115 @@ const card: React.CSSProperties = {
     background: "rgba(255,255,255,0.03)",
 };
 
+const smallCard: React.CSSProperties = {
+    border: "1px solid #333",
+    borderRadius: 14,
+    padding: 14,
+    background: "rgba(0,0,0,0.25)",
+};
+
 function Row({ label, value }: { label: string; value: any }) {
     return (
         <div style={{ display: "grid", gridTemplateColumns: "190px 1fr", gap: 10 }}>
             <div style={{ opacity: 0.7 }}>{label}</div>
             <div style={{ fontWeight: 650 }}>{String(value)}</div>
+        </div>
+    );
+}
+
+function parseFinalPlace(fp: any): number | null {
+    if (fp === null || fp === undefined) return null;
+    const s = String(fp).trim();
+    if (!s) return null;
+    const n = Number(s);
+    if (Number.isNaN(n) || n <= 0) return null;
+    return n;
+}
+
+function medalForPlaceNum(n: number | null): "gold" | "silver" | "bronze" | null {
+    if (!n) return null;
+    if (n === 1) return "gold";
+    if (n === 2) return "silver";
+    // două bronzuri: loc 3 și 4
+    if (n === 3 || n === 4) return "bronze";
+    return null;
+}
+
+function medalEmoji(kind: "gold" | "silver" | "bronze") {
+    if (kind === "gold") return "🥇";
+    if (kind === "silver") return "🥈";
+    return "🥉";
+}
+
+function normalizeCat(raw: any): string {
+    const s = String(raw ?? "").trim();
+    if (!s) return "OPEN";
+
+    const up = s.toUpperCase();
+
+    if (["OPEN", "OP", "GENERAL", "GENERALA", "ALL"].includes(up)) return "OPEN";
+    if (["HOBBY", "HOBBIT", "AMATOR", "AMATORI", "RECREATIONAL"].includes(up)) return "HOBBY";
+    if (up.includes("AVANS")) return "AVANSATI";
+    if (["ADVANCED", "AVANCED", "ADV"].includes(up)) return "AVANSATI";
+    if (["ELITE", "PRO", "EXPERT"].includes(up) || up.includes("ELIT")) return "ELITE";
+
+    return up;
+}
+
+function prettyCat(cat: string) {
+    const up = String(cat || "").toUpperCase();
+    if (up === "OPEN") return "Open";
+    if (up === "HOBBY") return "Hobby";
+    if (up === "AVANSATI") return "Avansați";
+    if (up === "ELITE") return "Elite";
+    return cat;
+}
+
+// ✅ Categoria jucătorului (derivată din MP; pentru "promovare" folosim MP Max).
+function playerCategoryFromMp(mp: number | null | undefined) {
+    const v = Number(mp ?? 0);
+    // Regula voastră:
+    // Hobby: < 20
+    // Avansați: 20..40
+    // Elite: > 40
+    if (v < 20) return "HOBBY";
+    if (v <= 40) return "AVANSATI";
+    return "ELITE";
+}
+
+function prettyPlayerCat(cat: string) {
+    const up = cat.toUpperCase();
+    if (up === "HOBBY") return "Hobby";
+    if (up === "AVANSATI") return "Avansați";
+    if (up === "CAT_3" || up === "CAT3" || up === "CATEGORIA_A_3A") return "Categoria a 3-a";
+    if (up === "ELITE") return "Elite";
+    return cat;
+}
+
+function Badge({ label, value }: { label: string; value: number }) {
+    return (
+        <div
+            style={{
+                border: "1px solid #444",
+                borderRadius: 999,
+                padding: "8px 10px",
+                display: "inline-flex",
+                gap: 8,
+                alignItems: "center",
+                fontWeight: 900,
+            }}
+        >
+            <span style={{ fontSize: 16 }}>{label}</span>
+            <span style={{ fontSize: 14 }}>{value}</span>
+        </div>
+    );
+}
+
+function Mini({ label, value }: { label: string; value: number }) {
+    return (
+        <div style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 13, opacity: 0.95 }}>
+            <span>{label}</span>
+            <b>{value}</b>
         </div>
     );
 }
@@ -103,6 +205,13 @@ export default function AccountPage() {
     const [myRegs, setMyRegs] = useState<MyRegRow[]>([]);
 
     const [errorText, setErrorText] = useState<string | null>(null);
+    const [editAmatur, setEditAmatur] = useState(false);
+    const [amaturValue, setAmaturValue] = useState<number | "">(player?.amatur_mp ?? "");
+    const [savingAmatur, setSavingAmatur] = useState(false);
+    const [amaturMsg, setAmaturMsg] = useState<string | null>(null);
+
+
+
 
     useEffect(() => {
         let mounted = true;
@@ -113,7 +222,6 @@ export default function AccountPage() {
             setErrorText(null);
             setMyRegs([]);
 
-            // 1) Auth user
             const { data: authData, error: authErr } = await supabase.auth.getUser();
             if (authErr) console.error("auth.getUser error:", authErr);
 
@@ -134,7 +242,6 @@ export default function AccountPage() {
                 return;
             }
 
-            // 2) Player profile from players
             const { data: p, error: pErr } = await supabase
                 .from("players")
                 .select("id,display_name,full_name,first_name,last_name,mp,mp_max,amatur_mp,is_admin")
@@ -154,14 +261,11 @@ export default function AccountPage() {
 
             setPlayer(resolvedPlayer);
 
-            // Use players.id when available; otherwise fallback to auth.uid
             const pid = resolvedPlayer?.id ?? uid;
             setPlayerIdForRegs(pid);
 
             setLoading(false);
 
-            // 3) Registrations history
-            // IMPORTANT: we use "*" for registrations so you can add columns later (final_place, ko_label)
             const { data: regs, error: rErr } = await supabase
                 .from("registrations")
                 .select(
@@ -171,7 +275,9 @@ export default function AccountPage() {
             start_at,
             status,
             format,
-            location
+            location,
+            category,
+            is_rated
           )`
                 )
                 .eq("player_id", pid)
@@ -203,17 +309,81 @@ export default function AccountPage() {
         (player?.full_name ?? "").trim() ||
         "—";
 
-    function placeText(r: MyRegRow) {
-        // Preferred: real place saved in DB (registrations.final_place)
-        if (typeof r.final_place === "number" && r.final_place > 0) return `Locul ${r.final_place}`;
-        // Optional: KO label saved in DB
-        if (r.ko_label) return r.ko_label;
-        // Fallback: old mapping from status
-        return mapPlaceFallback(r.status);
+    const playerCat = useMemo(() => prettyPlayerCat(playerCategoryFromMp(player?.mp_max ?? player?.mp)), [player?.mp_max, player?.mp]);
+
+    const palmares = useMemo(() => {
+        const total = { gold: 0, silver: 0, bronze: 0 };
+        const byCat: Record<string, { gold: 0; silver: 0; bronze: 0; participari: number }> = {};
+
+        for (const r of myRegs) {
+            if ((r.tournaments as any)?.is_rated === false) continue;
+            const cat = prettyCat(normalizeCat(r.tournaments?.category));
+            if (!byCat[cat]) byCat[cat] = { gold: 0, silver: 0, bronze: 0, participari: 0 };
+            byCat[cat].participari += 1;
+
+            const place = parseFinalPlace(r.final_place);
+            const medal = medalForPlaceNum(place);
+            if (!medal) continue;
+
+            total[medal] += 1;
+            byCat[cat][medal] += 1;
+        }
+
+        const cats = Object.entries(byCat)
+            .map(([cat, v]) => ({ cat, ...v }))
+            .sort((a, b) => {
+                const am = a.gold * 100 + a.silver * 10 + a.bronze;
+                const bm = b.gold * 100 + b.silver * 10 + b.bronze;
+                if (bm !== am) return bm - am;
+                return b.participari - a.participari;
+            });
+
+        return { total, cats, participariTotal: myRegs.length };
+    }, [myRegs]);
+
+    const last4MpTurnee = useMemo(() => {
+        const regsSorted = [...myRegs].sort((a, b) => {
+            const ta = a.tournaments?.start_at ? new Date(a.tournaments.start_at).getTime() : 0;
+            const tb = b.tournaments?.start_at ? new Date(b.tournaments.start_at).getTime() : 0;
+            return tb - ta;
+        });
+
+        // ✅ Folosim la medie DOAR turneele non-ZV (is_zv=false) cu mp_turneu numeric.
+        const usedVals: number[] = [];
+        let zvSkipped = 0;
+
+        for (const r of regsSorted) {
+            const isZv = Boolean((r as any)?.is_zv);
+            const isRated = (r.tournaments as any)?.is_rated !== false;
+            if (!isRated) {
+                continue;
+            }
+            if (isZv) {
+                zvSkipped += 1;
+                continue;
+            }
+            const v = Number((r as any)?.mp_turneu);
+            if (!Number.isFinite(v)) continue;
+            usedVals.push(v);
+            if (usedVals.length >= 4) break;
+        }
+
+        const avg = usedVals.length ? usedVals.reduce((s, v) => s + v, 0) / usedVals.length : 0;
+
+        return { vals: usedVals, avg, count: usedVals.length, zvSkipped };
+    }, [myRegs]);
+
+
+    function placeTextAndMedal(r: MyRegRow) {
+        const n = parseFinalPlace(r.final_place);
+        if (!n) return { text: "—", medal: null as null | string };
+        const medalKind = medalForPlaceNum(n);
+        const medal = medalKind ? medalEmoji(medalKind) : null;
+        return { text: `Locul ${n}`, medal };
     }
 
     return (
-        <div style={{ maxWidth: 980, margin: "0 auto", padding: 24 }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <h1 style={{ margin: 0 }}>Contul meu</h1>
                 <div style={{ marginLeft: "auto" }}>
@@ -248,14 +418,213 @@ export default function AccountPage() {
                         sau RLS blochează citirea.
                     </div>
                 ) : (
-                    <div style={{ display: "grid", gap: 10 }}>
-                        <Row label="Nume" value={name} />
-                        <Row label="Email (Auth)" value={authEmail ?? "—"} />
-                        <Row label="ID unic:" value={playerIdForRegs ?? "—"} />
-                        <Row label="Admin" value={player.is_admin ? "DA" : "NU"} />
-                        <Row label="MP Actual" value={player.mp ?? 0} />
-                        <Row label="MP Max" value={player.mp_max ?? (player.mp ?? 0)} />
-                        <Row label="MP circuit Amatur" value={player.amatur_mp ?? 0} />
+                    <div style={{ display: "flex", gap: 16, alignItems: "stretch", flexWrap: "wrap" }}>
+                        <div style={{ flex: "1 1 520px" }}>
+                            <div style={{ display: "grid", gap: 10 }}>
+                                <Row label="Nume" value={name} />
+                                <Row label="Email (Auth)" value={authEmail ?? "—"} />
+                                <Row label="ID unic" value={playerIdForRegs ?? "—"} />
+                                <Row label="Admin" value={player.is_admin ? "DA" : "NU"} />
+                                <Row label="MP Actual" value={player.mp ?? 0} />
+                                <Row label="MP Max" value={player.mp_max ?? (player.mp ?? 0)} />
+                                            <div style={{ display: "grid", gridTemplateColumns: "190px 1fr", gap: 10 }}>
+                                                <div style={{ opacity: 0.7 }}>MP circuit Amatur</div>
+
+                                                {!editAmatur ? (
+                                                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                                                        <b>{player.amatur_mp ?? 0}</b>
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditAmatur(true);
+                                                                setAmaturValue(player.amatur_mp ?? 0);
+                                                                setAmaturMsg(null);
+                                                            }}
+                                                            style={{
+                                                                border: "1px solid #444",
+                                                                borderRadius: 8,
+                                                                padding: "4px 8px",
+                                                                cursor: "pointer",
+                                                            }}
+                                                        >
+                                                            Editează
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                                        <input
+                                                            type="number"
+                                                            min={0}
+                                                            value={amaturValue}
+                                                            onChange={(e) => setAmaturValue(Number(e.target.value))}
+                                                            style={{
+                                                                width: 80,
+                                                                padding: "6px 8px",
+                                                                borderRadius: 8,
+                                                                border: "1px solid #444",
+                                                                background: "transparent",
+                                                                color: "inherit",
+                                                            }}
+                                                        />
+
+                                                        <button
+                                                            disabled={savingAmatur}
+                                                            onClick={async () => {
+                                                                setSavingAmatur(true);
+                                                                setAmaturMsg(null);
+
+                                                                const val = Number(amaturValue);
+                                                                if (!Number.isFinite(val) || val < 0) {
+                                                                    setAmaturMsg("Valoare invalidă.");
+                                                                    setSavingAmatur(false);
+                                                                    return;
+                                                                }
+
+                                                                const { error } = await supabase
+                                                                    .from("players")
+                                                                    .update({ amatur_mp: val })
+                                                                    .eq("id", player.id);
+
+                                                                if (error) {
+                                                                    setAmaturMsg("Eroare la salvare.");
+                                                                } else {
+                                                                    setPlayer((prev) =>
+                                                                        prev ? { ...prev, amatur_mp: val } : prev
+                                                                    );
+                                                                    setAmaturMsg("Salvat ✔");
+                                                                    setEditAmatur(false);
+                                                                }
+
+                                                                setSavingAmatur(false);
+                                                            }}
+                                                            style={{
+                                                                border: "1px solid #444",
+                                                                borderRadius: 8,
+                                                                padding: "6px 10px",
+                                                                cursor: savingAmatur ? "not-allowed" : "pointer",
+                                                                opacity: savingAmatur ? 0.6 : 1,
+                                                            }}
+                                                        >
+                                                            Salvează
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditAmatur(false);
+                                                                setAmaturValue(player.amatur_mp ?? 0);
+                                                                setAmaturMsg(null);
+                                                            }}
+                                                            style={{
+                                                                border: "none",
+                                                                background: "transparent",
+                                                                cursor: "pointer",
+                                                                opacity: 0.6,
+                                                            }}
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {amaturMsg && (
+                                                <div style={{ marginLeft: 200, fontSize: 13, opacity: 0.85 }}>
+                                                    {amaturMsg}
+                                                </div>
+                                            )}
+                                <Row label="Categoria jucătorului" value={playerCat} />
+                                <div style={{ marginTop: 10 }}>
+                                    <div style={{ fontWeight: 900, marginBottom: 8 }}>Ultimele MP Turneu (max 4) folosite la medie</div>
+
+                                    {regsLoading ? (
+                                        <div style={{ opacity: 0.85 }}>Se calculează…</div>
+                                    ) : last4MpTurnee.vals.length === 0 ? (
+                                        <div style={{ opacity: 0.85 }}>Încă nu ai MP Turneu salvate (sau ai doar turnee ZV).</div>
+                                    ) : (
+                                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                                            {last4MpTurnee.vals.map((v, i) => (
+                                                <div
+                                                    key={i}
+                                                    style={{
+                                                        border: "1px solid #444",
+                                                        borderRadius: 999,
+                                                        padding: "8px 10px",
+                                                        fontWeight: 900,
+                                                    }}
+                                                    title="MP Turneu (salvat la finalizarea turneului)"
+                                                >
+                                                    {v}
+                                                </div>
+                                            ))}
+
+                                            <div style={{ marginLeft: "auto", opacity: 0.85, textAlign: "right" }}>
+                                                <div>
+                                                    Medie: <b>{Math.round(last4MpTurnee.avg)}</b>
+                                                </div>
+                                                {last4MpTurnee.zvSkipped > 0 ? (
+                                                    <div style={{ fontSize: 12, opacity: 0.75 }}>
+                                                        ZV ignorate: <b>{last4MpTurnee.zvSkipped}</b>
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <div style={{ flex: "0 1 360px", minWidth: 320 }}>
+                            <div style={smallCard}>
+                                <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                                    <div style={{ fontWeight: 900, fontSize: 16 }}>Palmares</div>
+                                    <div style={{ marginLeft: "auto", opacity: 0.75, fontSize: 12 }}>
+                                        Turnee: <b>{palmares.participariTotal}</b>
+                                    </div>
+                                </div>
+
+                                {regsLoading ? (
+                                    <div style={{ marginTop: 10, opacity: 0.85 }}>Se calculează…</div>
+                                ) : (
+                                    <>
+                                        <div style={{ marginTop: 10, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                                            <Badge label="🥇" value={palmares.total.gold} />
+                                            <Badge label="🥈" value={palmares.total.silver} />
+                                            <Badge label="🥉" value={palmares.total.bronze} />
+                                        </div>
+
+                                        {palmares.cats.length > 0 ? (
+                                            <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+                                                {palmares.cats.map((c) => (
+                                                    <div
+                                                        key={c.cat}
+                                                        style={{
+                                                            border: "1px solid #2e2e2e",
+                                                            borderRadius: 12,
+                                                            padding: "10px 10px",
+                                                            background: "rgba(255,255,255,0.02)",
+                                                        }}
+                                                    >
+                                                        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                                                            <div style={{ fontWeight: 900 }}>{c.cat}</div>
+                                                            <div style={{ marginLeft: "auto", fontSize: 12, opacity: 0.75 }}>
+                                                                Turnee: <b>{c.participari}</b>
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                                                            <Mini label="🥇" value={c.gold} />
+                                                            <Mini label="🥈" value={c.silver} />
+                                                            <Mini label="🥉" value={c.bronze} />
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div style={{ marginTop: 12, opacity: 0.85 }}>Nu există încă turnee în istoric.</div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
@@ -273,6 +642,9 @@ export default function AccountPage() {
                     <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                         {myRegs.map((r, idx) => {
                             const t = r.tournaments;
+                            const { text: placeText, medal } = placeTextAndMedal(r);
+                            const cat = prettyCat(normalizeCat(t?.category));
+
                             return (
                                 <div
                                     key={`${r.tournament_id}-${idx}`}
@@ -286,25 +658,23 @@ export default function AccountPage() {
                                     <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
                                         <div style={{ fontWeight: 800 }}>{t?.title ?? "Turneu"}</div>
                                         <div style={{ opacity: 0.75 }}>{t?.start_at ? formatRO(t.start_at) : ""}</div>
-                                        <div style={{ marginLeft: "auto", opacity: 0.9 }}>
-                                            Status înscriere: <b>{r.status ?? "—"}</b>
-                                        </div>
-                                    </div>
 
-                                    <div style={{ marginTop: 6, fontSize: 13, opacity: 0.95 }}>
-                                        Loc obținut: <b>{placeText(r)}</b>
-                                        <span style={{ opacity: 0.65 }}> (recomandat: salvare în DB ca registrations.final_place)</span>
+                                        <div style={{ marginLeft: "auto", opacity: 0.95 }}>
+                                            Loc obținut: <b>{placeText}</b>
+                                            {medal ? <span style={{ marginLeft: 6 }}>{medal}</span> : null}
+                                        </div>
                                     </div>
 
                                     <div style={{ marginTop: 6, opacity: 0.85, fontSize: 13 }}>
                                         {t?.location ? `Locație: ${t.location} · ` : ""}
                                         {t?.format ? `Format: ${t.format} · ` : ""}
-                                        {t?.status ? `Status turneu: ${t.status}` : ""}
+                                        {t?.status ? `Status turneu: ${t.status} · ` : ""}
+                                        {`Categorie: ${cat}`}{" · "}{`Tip: ${(t as any)?.is_rated === false ? "Agrement" : "Punctat"}`}
                                     </div>
 
-                                    <div style={{ marginTop: 10, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                                    <div style={{ marginTop: 10 }}>
                                         <Link href={`/tournaments/${r.tournament_id}`} style={{ textDecoration: "underline" }}>
-                                            Vezi clasamentul / detalii turneu
+                                            Vezi detalii turneu
                                         </Link>
                                     </div>
                                 </div>
@@ -312,15 +682,6 @@ export default function AccountPage() {
                         })}
                     </div>
                 )}
-            </div>
-
-            <div style={{ marginTop: 18, opacity: 0.75, fontSize: 13 }}>
-                De ce nu pot lua direct „locul” din Supabase acum?
-                <ul style={{ marginTop: 8 }}>
-                    <li>View-ul <b>tournament_overview</b> este doar despre turnee (număr înscriși, status, etc.), nu despre clasament.</li>
-                    <li>Clasamentul pe care îl vezi pe pagina turneului este calculat (din meciuri/KO/grupe) și nu pare salvat ca tabel/view separat.</li>
-                    <li>Cea mai simplă soluție: la „Finalizează turneu” să scriem în <b>registrations.final_place</b> locul fiecărui jucător.</li>
-                </ul>
             </div>
         </div>
     );

@@ -160,6 +160,14 @@ export default function LoginPage() {
                 <input style={inputStyle} placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
                 <input style={inputStyle} placeholder="Parolă" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
 
+                {mode === "login" && (
+                    <div style={{ textAlign: "right", marginTop: -6 }}>
+                        <Link href="/forgot-password" style={{ fontSize: 13, opacity: 0.9 }}>
+                            Ai uitat parola?
+                        </Link>
+                    </div>
+                )}
+
                 <button style={{ ...buttonStyle, opacity: busy ? 0.6 : 1 }} disabled={busy}>
                     {mode === "login" ? "Login" : "Creează cont"}
                 </button>

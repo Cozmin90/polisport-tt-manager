@@ -246,7 +246,7 @@ export default function NewTournamentPage() {
                         <input
                             value={location}
                             onChange={(e) => setLocation(e.target.value)}
-                            placeholder="Ex: UPP, hol central."
+                            placeholder="Ex: UPB, Cladire AN, hol central."
                             style={{
                                 padding: 12,
                                 borderRadius: 10,
