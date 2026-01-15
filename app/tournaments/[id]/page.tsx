@@ -7,7 +7,6 @@ import { supabase } from "../../../lib/supabaseClient";
 
 type TournamentFormat = "LOWER_UPPER_KO" | "GROUPS_KO";
 
-// Categoria jucătorului (din MP Max)
 type PlayerCat = "HOBBY" | "ADVANCED" | "ELITE";
 function playerCategoryFromMpMax(mpMax: number): PlayerCat {
     if (mpMax < 20) return "HOBBY";
@@ -15,23 +14,33 @@ function playerCategoryFromMpMax(mpMax: number): PlayerCat {
     return "ELITE";
 }
 function catShort(c: PlayerCat) {
-    // H = Hobby, A = Avansați, E = Elite
     if (c === "HOBBY") return "H";
     if (c === "ADVANCED") return "A";
     return "E";
+}
+function normalizeNum(x: unknown, fallback: number) {
+    const n = Number(x);
+    return Number.isFinite(n) ? n : fallback;
 }
 
 type RegistrationRow = {
     player_id: string;
     status: string;
+
+    // ✅ snapshot/persist (nu depinde de players.mp)
+    mp_before: number | null;
+    mp_turneu: number | null;
+    final_place: number | null;
+    ko_label: string | null;
+    is_zv: boolean | null;
+
+
     players:
     | {
         full_name: string;
         display_name: string | null;
         first_name: string | null;
         last_name: string | null;
-        mp: number | string | null;
-        mp_max: number | string | null;
     }
     | null;
 };
@@ -64,94 +73,11 @@ type MatchRow = {
     p2?: { full_name: string } | null;
 };
 
-type Stat = { wins: number; losses: number; pf: number; pa: number };
-
-function parseScore(score: string | null): { a: number; b: number } | null {
-    if (!score) return null;
-    const m = score.trim().match(/^(\d+)\s*-\s*(\d+)$/);
-    if (!m) return null;
-    return { a: parseInt(m[1], 10), b: parseInt(m[2], 10) };
-}
-
-function rankWithMiniTable(
-    members: { player_id: string; full_name: string }[],
-    overall: Record<string, Stat>,
-    matches: { p1: string; p2: string; a: number; b: number }[]
-) {
-    const sorted = [...members].sort((x, y) => (overall[y.player_id]?.wins ?? 0) - (overall[x.player_id]?.wins ?? 0));
-
-    const out: { player_id: string; full_name: string }[] = [];
-    let i = 0;
-
-    while (i < sorted.length) {
-        const w = overall[sorted[i].player_id]?.wins ?? 0;
-        const tie: { player_id: string; full_name: string }[] = [];
-        while (i < sorted.length && (overall[sorted[i].player_id]?.wins ?? 0) === w) {
-            tie.push(sorted[i]);
-            i++;
-        }
-
-        if (tie.length === 1) {
-            out.push(tie[0]);
-            continue;
-        }
-
-        const ids = new Set(tie.map((t) => t.player_id));
-        const mini: Record<string, Stat> = {};
-        for (const t of tie) mini[t.player_id] = { wins: 0, losses: 0, pf: 0, pa: 0 };
-
-        for (const m of matches) {
-            if (!ids.has(m.p1) || !ids.has(m.p2)) continue;
-
-            mini[m.p1].pf += m.a;
-            mini[m.p1].pa += m.b;
-            mini[m.p2].pf += m.b;
-            mini[m.p2].pa += m.a;
-
-            if (m.a > m.b) {
-                mini[m.p1].wins += 1;
-                mini[m.p2].losses += 1;
-            } else if (m.b > m.a) {
-                mini[m.p2].wins += 1;
-                mini[m.p1].losses += 1;
-            }
-        }
-
-        const tieSorted = [...tie].sort((x, y) => {
-            const mx = mini[x.player_id];
-            const my = mini[y.player_id];
-
-            if (my.wins !== mx.wins) return my.wins - mx.wins;
-
-            const dxm = mx.pf - mx.pa;
-            const dym = my.pf - my.pa;
-            if (dym !== dxm) return dym - dxm;
-
-            if (my.pf !== mx.pf) return my.pf - mx.pf;
-
-            const ox = overall[x.player_id];
-            const oy = overall[y.player_id];
-            const dxo = (ox?.pf ?? 0) - (ox?.pa ?? 0);
-            const dyo = (oy?.pf ?? 0) - (oy?.pa ?? 0);
-            if (dyo !== dxo) return dyo - dxo;
-
-            if ((oy?.pf ?? 0) !== (ox?.pf ?? 0)) return (oy?.pf ?? 0) - (ox?.pf ?? 0);
-
-            return x.full_name.localeCompare(y.full_name);
-        });
-
-        out.push(...tieSorted);
-    }
-
-    return out;
-}
-
 function nextPow2(n: number) {
     let p = 1;
     while (p < n) p *= 2;
     return p;
 }
-
 function roundLabel(r: number, size: number) {
     const rounds = Math.log2(size);
     const remaining = rounds - r + 1;
@@ -189,31 +115,18 @@ function getPodiumTop4(matchesKO: MatchRow[]) {
 
     const uniqueThird = Array.from(new Set(thirdPlaceIds)).slice(0, 2);
 
-    const nameById = (id: string | null) => {
-        if (!id) return null;
-        const found = matchesKO.find((m) => m.player1_id === id || m.player2_id === id);
-        if (!found) return id;
-        if (found.player1_id === id) return found.p1?.full_name ?? id;
-        return found.p2?.full_name ?? id;
-    };
-
     return {
-        place1: { id: place1Id, name: nameById(place1Id) ?? "Locul 1" },
-        place2: { id: place2Id ?? "", name: nameById(place2Id ?? null) ?? "Locul 2" },
-        place3a: uniqueThird[0] ? { id: uniqueThird[0], name: nameById(uniqueThird[0]) ?? "Locul 3" } : null,
-        place3b: uniqueThird[1] ? { id: uniqueThird[1], name: nameById(uniqueThird[1]) ?? "Locul 3" } : null,
+        place1: place1Id ? { id: place1Id } : null,
+        place2: place2Id ? { id: place2Id } : null,
+        place3a: uniqueThird[0] ? { id: uniqueThird[0] } : null,
+        place3b: uniqueThird[1] ? { id: uniqueThird[1] } : null,
     };
 }
 
 function buildKORunMap(matchesKO: MatchRow[]) {
     if (!matchesKO || matchesKO.length === 0) {
-        return { roundReached: new Map<string, number>(), championId: null as string | null };
+        return { roundReached: new Map<string, number>() };
     }
-
-    const rounds = matchesKO.map((m) => m.round ?? 1);
-    const maxR = Math.max(...rounds);
-    const finalM = matchesKO.find((m) => (m.round ?? 1) === maxR);
-    const championId = finalM?.winner_id ?? null;
 
     const roundReached = new Map<string, number>();
     for (const m of matchesKO) {
@@ -225,12 +138,13 @@ function buildKORunMap(matchesKO: MatchRow[]) {
         }
     }
 
-    return { roundReached, championId };
-}
+    // winner of final gets +1
+    const rounds = matchesKO.map((m) => m.round ?? 1);
+    const maxR = Math.max(...rounds);
+    const finalM = matchesKO.find((m) => (m.round ?? 1) === maxR);
+    if (finalM?.winner_id) roundReached.set(finalM.winner_id, maxR + 1);
 
-function normalizeNum(x: unknown, fallback: number) {
-    const n = Number(x);
-    return Number.isFinite(n) ? n : fallback;
+    return { roundReached };
 }
 
 export default function PublicTournamentReadOnlyPage() {
@@ -241,12 +155,10 @@ export default function PublicTournamentReadOnlyPage() {
 
     const [title, setTitle] = useState("");
     const [format, setFormat] = useState<TournamentFormat>("LOWER_UPPER_KO");
-
     const [rows, setRows] = useState<RegistrationRow[]>([]);
 
     const [groupsLower, setGroupsLower] = useState<GroupWithMembers[]>([]);
     const [groupsUpper, setGroupsUpper] = useState<GroupWithMembers[]>([]);
-
     const [matchesLower, setMatchesLower] = useState<MatchRow[]>([]);
     const [matchesUpper, setMatchesUpper] = useState<MatchRow[]>([]);
     const [matchesKO, setMatchesKO] = useState<MatchRow[]>([]);
@@ -265,14 +177,13 @@ export default function PublicTournamentReadOnlyPage() {
                     p?.full_name ||
                     "—";
 
-                const mp = normalizeNum(p?.mp, 2);
-                const mpMax = normalizeNum(p?.mp_max, mp);
-
-                return { id: r.player_id, name, mp, mpMax, category: playerCategoryFromMpMax(mpMax) };
+                const mp = normalizeNum((r as any).mp_before, 2);
+                // categoria o decizi din mp-ul de la înscriere (snapshot)
+                return { id: r.player_id, name, mp, category: playerCategoryFromMpMax(mp) };
             })
             .sort((a, b) => {
-                if (b.mp !== a.mp) return b.mp - a.mp; // MP desc
-                return a.name.localeCompare(b.name); // egalitate: alfabetic
+                if (b.mp !== a.mp) return b.mp - a.mp;
+                return a.name.localeCompare(b.name);
             });
 
         return list;
@@ -342,11 +253,7 @@ export default function PublicTournamentReadOnlyPage() {
     async function load() {
         setLoading(true);
 
-        const { data: t, error: tErr } = await supabase
-            .from("tournaments")
-            .select("title,format")
-            .eq("id", tournamentId)
-            .single();
+        const { data: t, error: tErr } = await supabase.from("tournaments").select("title,format").eq("id", tournamentId).single();
 
         if (tErr || !t) {
             setTitle("");
@@ -359,12 +266,11 @@ export default function PublicTournamentReadOnlyPage() {
 
         const { data: regs } = await supabase
             .from("registrations")
-            .select(
-                `
-        player_id,status,
-        players:player_id(full_name,display_name,first_name,last_name,mp,mp_max)
-      `
-            )
+            .select(`
+    player_id,status,
+    mp_before, mp_turneu, final_place, ko_label, is_zv,
+    players:player_id(full_name,display_name,first_name,last_name)
+  `)
             .eq("tournament_id", tournamentId)
             .order("registered_at", { ascending: true });
 
@@ -385,9 +291,6 @@ export default function PublicTournamentReadOnlyPage() {
         setLoading(false);
     }
 
-    const lowerHasStandings = groupsLower.some((g) => g.members.some((m) => m.rank_in_group != null));
-    const upperHasStandings = groupsUpper.some((g) => g.members.some((m) => m.rank_in_group != null));
-
     const matchesKOByRound = useMemo(() => {
         const map: Record<number, MatchRow[]> = {};
         for (const m of matchesKO) {
@@ -395,13 +298,17 @@ export default function PublicTournamentReadOnlyPage() {
             if (!map[r]) map[r] = [];
             map[r].push(m);
         }
-        const rounds = Object.keys(map)
-            .map((x) => parseInt(x, 10))
-            .sort((a, b) => a - b);
+        const rounds = Object.keys(map).map((x) => parseInt(x, 10)).sort((a, b) => a - b);
         return { map, rounds };
     }, [matchesKO]);
 
     const podium = useMemo(() => getPodiumTop4(matchesKO), [matchesKO]);
+
+    const regMap = useMemo(() => {
+        const m = new Map<string, RegistrationRow>();
+        for (const r of rows) m.set(r.player_id, r);
+        return m;
+    }, [rows]);
 
     const overallRanking = useMemo(() => {
         const base = participants.map((p) => ({
@@ -412,8 +319,6 @@ export default function PublicTournamentReadOnlyPage() {
             winsLower: 0,
             winsUpper: 0,
             koRound: 0,
-            groupStage: "" as "UPPER_GROUP" | "LOWER_GROUP" | "",
-            groupName: "",
             groupRank: null as number | null,
             finalPlace: null as 1 | 2 | 3 | null,
             mpTournament: null as number | null,
@@ -422,10 +327,10 @@ export default function PublicTournamentReadOnlyPage() {
 
         const idToRow = new Map(base.map((x) => [x.id, x]));
 
-        if (podium?.place1?.id) idToRow.get(podium.place1.id)?.finalPlace = 1;
-        if (podium?.place2?.id) idToRow.get(podium.place2.id)?.finalPlace = 2;
-        if (podium?.place3a?.id) idToRow.get(podium.place3a.id)?.finalPlace = 3;
-        if (podium?.place3b?.id) idToRow.get(podium.place3b.id)?.finalPlace = 3;
+        if (podium?.place1?.id) idToRow.get(podium.place1.id)!.finalPlace = 1;
+        if (podium?.place2?.id) idToRow.get(podium.place2.id)!.finalPlace = 2;
+        if (podium?.place3a?.id) idToRow.get(podium.place3a.id)!.finalPlace = 3;
+        if (podium?.place3b?.id) idToRow.get(podium.place3b.id)!.finalPlace = 3;
 
         const { roundReached } = buildKORunMap(matchesKO);
         for (const [id, rr] of roundReached.entries()) {
@@ -433,34 +338,18 @@ export default function PublicTournamentReadOnlyPage() {
             if (row) row.koRound = rr;
         }
 
-        const upperByPlayer = new Map<string, { groupName: string; rank: number | null; wins: number }>();
-        for (const g of groupsUpper) {
-            for (const m of g.members)
-                upperByPlayer.set(m.player_id, { groupName: g.name, rank: m.rank_in_group ?? null, wins: m.wins ?? 0 });
-        }
+        const upperByPlayer = new Map<string, { rank: number | null; wins: number }>();
+        for (const g of groupsUpper) for (const m of g.members) upperByPlayer.set(m.player_id, { rank: m.rank_in_group ?? null, wins: m.wins ?? 0 });
 
-        const lowerByPlayer = new Map<string, { groupName: string; rank: number | null; wins: number }>();
-        for (const g of groupsLower) {
-            for (const m of g.members)
-                lowerByPlayer.set(m.player_id, { groupName: g.name, rank: m.rank_in_group ?? null, wins: m.wins ?? 0 });
-        }
+        const lowerByPlayer = new Map<string, { rank: number | null; wins: number }>();
+        for (const g of groupsLower) for (const m of g.members) lowerByPlayer.set(m.player_id, { rank: m.rank_in_group ?? null, wins: m.wins ?? 0 });
 
         for (const row of base) {
             const up = upperByPlayer.get(row.id);
             const lo = lowerByPlayer.get(row.id);
-
             row.winsUpper = up?.wins ?? 0;
             row.winsLower = lo?.wins ?? 0;
-
-            if (up) {
-                row.groupStage = "UPPER_GROUP";
-                row.groupName = up.groupName;
-                row.groupRank = up.rank;
-            } else if (lo) {
-                row.groupStage = "LOWER_GROUP";
-                row.groupName = lo.groupName;
-                row.groupRank = lo.rank;
-            }
+            row.groupRank = (up?.rank ?? lo?.rank ?? null);
         }
 
         const sorted = [...base].sort((a, b) => {
@@ -479,10 +368,7 @@ export default function PublicTournamentReadOnlyPage() {
             return a.name.localeCompare(b.name);
         });
 
-        const regSorted = [...participants].sort((a, b) => {
-            if (b.mp !== a.mp) return b.mp - a.mp;
-            return a.name.localeCompare(b.name);
-        });
+        const regSorted = [...participants].sort((a, b) => (b.mp !== a.mp ? b.mp - a.mp : a.name.localeCompare(b.name)));
 
         const regMeans: number[] = [];
         for (let i = 0; i < regSorted.length; i += 4) {
@@ -501,13 +387,22 @@ export default function PublicTournamentReadOnlyPage() {
 
             for (let j = 0; j < block.length; j++) {
                 const pos = i + j + 1;
-
                 const bonus = pos === 1 ? 6 : pos === 2 ? 4 : pos === 3 ? 2 : hasKO && pos === 4 ? 2 : 0;
+                const reg = regMap.get(block[j].id);
+                const persistedIsZv = Boolean(reg?.is_zv);
+                const persisted = reg?.mp_turneu;
 
-                const mpTournament = mpSector + bonus;
-
-                block[j].mpTournament = mpTournament;
-                block[j].mpBonus = bonus;
+                if (persistedIsZv) {
+                    // ✅ ZV persistat: nu calculăm MP Turneu, rămâne ZV
+                    block[j].mpTournament = null;
+                    block[j].mpBonus = 0;
+                } else if (persisted != null) {
+                    block[j].mpTournament = persisted;
+                    block[j].mpBonus = 0; // persistat în DB
+                } else {
+                    block[j].mpTournament = mpSector + bonus;
+                    block[j].mpBonus = bonus;
+                }
             }
         }
 
@@ -535,16 +430,14 @@ export default function PublicTournamentReadOnlyPage() {
     }
 
     const sizeForLabel = nextPow2((matchesKO.filter((m) => (m.round ?? 1) === 1).length || 1) * 2);
-    const maxKORound = matchesKOByRound.rounds.length ? Math.max(...matchesKOByRound.rounds) : 1;
 
     return (
         <main style={{ maxWidth: 1150, margin: "0 auto", padding: 24 }}>
             <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
                 <div>
-                    <h1 style={{ fontSize: 22, fontWeight: 800 }}>{title || "Turneu"}</h1>
+                    <h1 style={{ fontSize: 22, fontWeight: 800 }}>{title}</h1>
                     <div style={{ opacity: 0.8, fontSize: 13 }}>
-                        Format: {format === "LOWER_UPPER_KO" ? "Inferioare → Superioare → KO" : "Grupe → KO direct"} • Grupe:{" "}
-                        {groupsLower.length} • Superioare: {groupsUpper.length} • KO: {matchesKO.length} meciuri
+                        Format: {format === "LOWER_UPPER_KO" ? "Inferioare → Superioare → KO" : "Grupe → KO direct"}
                     </div>
                 </div>
                 <Link href="/tournaments">← Înapoi la istoric</Link>
@@ -567,26 +460,25 @@ export default function PublicTournamentReadOnlyPage() {
                                     <th style={{ padding: "8px 6px", width: 120 }}>Categorie</th>
                                     <th style={{ padding: "8px 6px", width: 120, textAlign: "center" }}>Victorii gr. inf.</th>
                                     <th style={{ padding: "8px 6px", width: 120, textAlign: "center" }}>Victorii gr. sup.</th>
-                                    <th style={{ padding: "8px 6px", width: 140, textAlign: "right" }}>MP Turneu (bonus inclus)</th>
+                                    <th style={{ padding: "8px 6px", width: 140, textAlign: "right" }}>MP Turneu</th>
                                 </tr>
                             </thead>
 
                             <tbody>
                                 {overallRanking.map((p, idx) => {
                                     const placeLabel = p.finalPlace === 1 ? "🥇" : p.finalPlace === 2 ? "🥈" : p.finalPlace === 3 ? "🥉" : "";
+                                    const persistedKo = regMap.get(p.id)?.ko_label ?? null;
 
-                                    const koLabel =
-                                        p.finalPlace === 1
-                                            ? "Campion"
-                                            : p.finalPlace === 2
-                                                ? "Finalist"
-                                                : p.finalPlace === 3
-                                                    ? "Semifinale"
-                                                    : p.koRound
-                                                        ? `Runda ${p.koRound}`
-                                                        : "—";
+                                    let koLabel: string | null = persistedKo;
 
+                                    if (!koLabel) {
+                                        if (p.finalPlace === 1) koLabel = "Campion";
+                                        else if (p.finalPlace === 2) koLabel = "Finalist";
+                                        else if (p.finalPlace === 3 || p.finalPlace === 4) koLabel = "Bronz";
+                                        else koLabel = null;
+                                    }
                                     const totalWins = (p.winsLower ?? 0) + (p.winsUpper ?? 0);
+                                    const persistedIsZv = Boolean(regMap.get(p.id)?.is_zv);
 
                                     return (
                                         <tr key={p.id} style={{ borderBottom: "1px solid #f3f3f3" }}>
@@ -595,7 +487,6 @@ export default function PublicTournamentReadOnlyPage() {
                                             </td>
 
                                             <td style={{ padding: "8px 6px", fontWeight: 900 }}>{p.name}</td>
-
                                             <td style={{ padding: "8px 6px" }}>{koLabel}</td>
 
                                             <td style={{ padding: "8px 6px" }}>
@@ -606,8 +497,8 @@ export default function PublicTournamentReadOnlyPage() {
                                             <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.winsUpper ?? 0}</td>
 
                                             <td style={{ padding: "8px 6px", textAlign: "right" }}>
-                                                {totalWins === 0 ? (
-                                                    <span style={{ fontSize: 12, fontWeight: 900, opacity: 100 }}>ZV</span>
+                                                {persistedIsZv || totalWins === 0 ? (
+                                                    <span style={{ fontSize: 12, fontWeight: 900 }}>ZV</span>
                                                 ) : p.mpTournament == null ? (
                                                     "—"
                                                 ) : (
@@ -624,40 +515,31 @@ export default function PublicTournamentReadOnlyPage() {
                         </table>
 
                         <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
-                            Notă: ZV = zero victorii în turneu. Sortare: Podium → runda KO → rank/grupe → MP (la înscriere) → alfabetic.
+                            ZV = zero victorii în turneu. Sortare: Podium → runda KO → rank/grupe → MP (la înscriere) → alfabetic.
                         </div>
                     </div>
                 )}
             </section>
 
-            {/* GRUPE (LOWER_GROUP) */}
+            {/* GRUPE LOWER */}
             <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-                    <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>{isGroupsKo ? "Grupe" : "Grupe inferioare"}</h2>
-                </div>
+                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>{isGroupsKo ? "Grupe" : "Grupe inferioare"}</h2>
 
                 <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
                     {groupsLower.length === 0 ? (
                         <div style={{ opacity: 0.8 }}>{isGroupsKo ? "Nu există grupe încă." : "Nu există grupe inferioare încă."}</div>
                     ) : (
                         groupsLower.map((g) => {
-                            const groupMatches = matchesLower
-                                .filter((m) => m.group_id === g.id)
-                                .sort((a, b) => (a.round ?? 1) - (b.round ?? 1));
-
+                            const groupMatches = matchesLower.filter((m) => m.group_id === g.id).sort((a, b) => (a.round ?? 1) - (b.round ?? 1));
                             const maxRound = groupMatches.reduce((acc, m) => Math.max(acc, m.round ?? 1), 1);
 
                             return (
                                 <div key={g.id} style={{ border: "1px solid #eee", borderRadius: 10, padding: 10 }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
                                         <div style={{ fontWeight: 900, fontSize: 15 }}>{g.name}</div>
-                                        {lowerHasStandings ? (
-                                            <div style={{ fontSize: 12, opacity: 0.75 }}>
-                                                Calificați: <b>Top 4</b> · Runde: <b>{maxRound}</b>
-                                            </div>
-                                        ) : (
-                                            <div style={{ fontSize: 12, opacity: 0.75 }}>Runde: <b>{maxRound}</b></div>
-                                        )}
+                                        <div style={{ fontSize: 12, opacity: 0.75 }}>
+                                            Calificați: <b>Top 4</b> · Runde: <b>{maxRound}</b>
+                                        </div>
                                     </div>
 
                                     <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10, fontSize: 13 }}>
@@ -669,7 +551,7 @@ export default function PublicTournamentReadOnlyPage() {
                                                 <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>L</th>
                                                 <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>Seturi</th>
                                                 <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>Dif</th>
-                                                <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>"Top 4"</th>
+                                                <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>Top 4</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -699,7 +581,6 @@ export default function PublicTournamentReadOnlyPage() {
                                         Tie-break: Victorii → Mini-clasament meciuri directe (2+) → Setaveraj overall → Seturi overall
                                     </div>
 
-                                    {/* Meciuri - în interiorul grupei (4 pe rând) */}
                                     {groupMatches.length > 0 && (
                                         <div style={{ marginTop: 12 }}>
                                             <div style={{ fontWeight: 900, marginBottom: 8 }}>Meciuri (ordine pe runde)</div>
@@ -714,15 +595,19 @@ export default function PublicTournamentReadOnlyPage() {
                                                                 display: "grid",
                                                                 gap: 8,
                                                                 marginTop: 6,
-                                                                gridTemplateColumns: "repeat(4, minmax(240px, 1fr))",
+                                                                gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                                                                justifyItems: "stretch",
+                                                                width: "100%",
+                                                                justifyContent: "stretch",
                                                             }}
                                                         >
                                                             {roundMatches.map((m) => (
                                                                 <div key={m.id} style={{ border: "1px solid #eee", borderRadius: 10, padding: 10 }}>
-                                                                    <div style={{ fontSize: 14 }}>
-                                                                        <b>{m.p1?.full_name ?? "P1"}</b> vs <b>{m.p2?.full_name ?? (m.player2_id ? "P2" : "BYE")}</b>
-                                                                        {m.score ? <span style={{ marginLeft: 10, opacity: 0.85 }}>Scor: {m.score}</span> : null}
-                                                                        {m.winner_id ? <span style={{ marginLeft: 10, opacity: 0.85 }}>✅</span> : null}
+                                                                    <div style={{ fontSize: 14, textAlign: "center" }}>
+                                                                        <div>
+                                                                            <b>{m.p1?.full_name ?? "P1"}</b> <span style={{ opacity: 0.75 }}>vs</span> <b>{m.p2?.full_name ?? (m.player2_id ? "P2" : "BYE")}</b>
+                                                                        </div>
+                                                                        <div style={{ marginTop: 6, fontSize: 13, fontWeight: 900 }}>{m.score ?? "—"}</div>
                                                                     </div>
                                                                 </div>
                                                             ))}
@@ -739,31 +624,25 @@ export default function PublicTournamentReadOnlyPage() {
                 </div>
             </section>
 
-            {/* SUPERIOARE (doar pentru LOWER_UPPER_KO) */}
+            {/* GRUPE UPPER */}
             {!isGroupsKo && (
                 <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
-                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-                        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Grupe superioare</h2>
-                    </div>
+                    <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Grupe superioare</h2>
 
                     <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
                         {groupsUpper.length === 0 ? (
                             <div style={{ opacity: 0.8 }}>Nu există grupe superioare încă.</div>
                         ) : (
                             groupsUpper.map((g) => {
-                                const groupMatches = matchesUpper
-                                    .filter((m) => m.group_id === g.id)
-                                    .sort((a, b) => (a.round ?? 1) - (b.round ?? 1));
+                                const groupMatches = matchesUpper.filter((m) => m.group_id === g.id).sort((a, b) => (a.round ?? 1) - (b.round ?? 1));
                                 const maxRound = groupMatches.reduce((acc, m) => Math.max(acc, m.round ?? 1), 1);
 
                                 return (
                                     <div key={g.id} style={{ border: "1px solid #eee", borderRadius: 10, padding: 10 }}>
                                         <div style={{ fontWeight: 900 }}>{g.name}</div>
-                                        {upperHasStandings && (
-                                            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.75 }}>
-                                                Calificați: <b>Top 2</b>
-                                            </div>
-                                        )}
+                                        <div style={{ marginTop: 8, fontSize: 12, opacity: 0.75 }}>
+                                            Calificați: <b>Top 2</b>
+                                        </div>
 
                                         <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8, fontSize: 13 }}>
                                             <thead>
@@ -800,7 +679,6 @@ export default function PublicTournamentReadOnlyPage() {
                                             </tbody>
                                         </table>
 
-                                        {/* Meciuri superioare (4 pe rând) */}
                                         {groupMatches.length > 0 && (
                                             <div style={{ marginTop: 12 }}>
                                                 <div style={{ fontWeight: 900, marginBottom: 8 }}>Meciuri (ordine pe runde)</div>
@@ -815,15 +693,19 @@ export default function PublicTournamentReadOnlyPage() {
                                                                     display: "grid",
                                                                     gap: 8,
                                                                     marginTop: 6,
-                                                                    gridTemplateColumns: "repeat(4, minmax(240px, 1fr))",
+                                                                    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                                                                    justifyItems: "stretch",
+                                                                    width: "100%",
+                                                                    justifyContent: "stretch",
                                                                 }}
                                                             >
                                                                 {roundMatches.map((m) => (
                                                                     <div key={m.id} style={{ border: "1px solid #eee", borderRadius: 10, padding: 10 }}>
-                                                                        <div style={{ fontSize: 14 }}>
-                                                                            <b>{m.p1?.full_name ?? "P1"}</b> vs <b>{m.p2?.full_name ?? (m.player2_id ? "P2" : "BYE")}</b>
-                                                                            {m.score ? <span style={{ marginLeft: 10, opacity: 0.85 }}>Scor: {m.score}</span> : null}
-                                                                            {m.winner_id ? <span style={{ marginLeft: 10, opacity: 0.85 }}>✅</span> : null}
+                                                                        <div style={{ fontSize: 14, textAlign: "center" }}>
+                                                                            <div>
+                                                                                <b>{m.p1?.full_name ?? "P1"}</b> <span style={{ opacity: 0.75 }}>vs</span> <b>{m.p2?.full_name ?? (m.player2_id ? "P2" : "BYE")}</b>
+                                                                            </div>
+                                                                            <div style={{ marginTop: 6, fontSize: 13, fontWeight: 900 }}>{m.score ?? "—"}</div>
                                                                         </div>
                                                                     </div>
                                                                 ))}
@@ -841,39 +723,57 @@ export default function PublicTournamentReadOnlyPage() {
                 </section>
             )}
 
-            {/* KO (2 pe rând, finala 1 pe rând) */}
+            {/* KO (2 coloane; finala centrată; fără “Winner set” și fără “Scor:” text) */}
             <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
-                    <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Tablou eliminatoriu (KO)</h2>
-                </div>
+                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Tablou eliminatoriu (KO)</h2>
 
                 {matchesKO.length === 0 ? (
                     <div style={{ marginTop: 10, opacity: 0.8 }}>Nu există KO încă.</div>
                 ) : (
                     <div style={{ marginTop: 10 }}>
                         {matchesKOByRound.rounds.map((r) => {
-                            const cols = r === maxKORound ? 1 : 2;
+                            const matchesInRound = matchesKOByRound.map[r] ?? [];
+                            const cols = matchesInRound.length === 1 ? 1 : 2;
+
                             return (
                                 <div key={r} style={{ marginTop: 10 }}>
                                     <div style={{ fontWeight: 900, marginBottom: 8 }}>{roundLabel(r, sizeForLabel)}</div>
 
-                                    <div style={{ display: "grid", gap: 8, gridTemplateColumns: `repeat(${cols}, minmax(320px, 1fr))` }}>
-                                        {matchesKOByRound.map[r].map((m) => (
-                                            <div key={m.id} style={{ border: "1px solid #eee", borderRadius: 10, padding: 10 }}>
-                                                <div style={{ fontSize: 14 }}>
-                                                    <b>{m.p1?.full_name ?? "—"}</b> <span style={{ opacity: 0.8 }}>vs</span>{" "}
-                                                    <b>{m.p2?.full_name ?? (m.player2_id ? "—" : "BYE")}</b>
-                                                    {m.score ? <span style={{ marginLeft: 10, opacity: 0.85 }}>Scor: {m.score}</span> : null}
-                                                    {m.winner_id ? <span style={{ marginLeft: 10, opacity: 0.85 }}>✅ Winner set</span> : null}
+                                    <div
+                                        style={{
+                                            display: "grid",
+                                            gap: 8,
+                                            gridTemplateColumns: `repeat(${cols}, minmax(320px, 1fr))`,
+                                            justifyItems: cols === 1 ? "center" : "stretch",
+                                        }}
+                                    >
+                                        {matchesInRound.map((m) => (
+                                            <div
+                                                key={m.id}
+                                                style={{
+                                                    border: "1px solid #eee",
+                                                    borderRadius: 10,
+                                                    padding: 10,
+                                                    width: cols === 1 ? "min(520px, 100%)" : "100%",
+                                                }}
+                                            >
+                                                <div style={{ textAlign: "center" }}>
+                                                    <div style={{ fontSize: 14, fontWeight: 700 }}>
+                                                        {m.p1?.full_name ?? "—"} <span style={{ opacity: 0.75, fontWeight: 400 }}>vs</span>{" "}
+                                                        {m.p2?.full_name ?? (m.player2_id ? "—" : "BYE")}
+                                                    </div>
+                                                    <div style={{ marginTop: 6, fontSize: 13, fontWeight: 900 }}>{m.score ?? "—"}</div>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
+
+                                    <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
+                                        KO este read-only în pagina publică.
+                                    </div>
                                 </div>
                             );
                         })}
-
-                        <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75 }}>KO este read-only în pagina publică.</div>
                     </div>
                 )}
             </section>

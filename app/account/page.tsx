@@ -88,10 +88,11 @@ const smallCard: React.CSSProperties = {
 };
 
 function Row({ label, value }: { label: string; value: any }) {
+    const isReactEl = value && typeof value === "object" && "type" in value;
     return (
         <div style={{ display: "grid", gridTemplateColumns: "190px 1fr", gap: 10 }}>
             <div style={{ opacity: 0.7 }}>{label}</div>
-            <div style={{ fontWeight: 650 }}>{String(value)}</div>
+            <div style={{ fontWeight: 650 }}>{isReactEl ? value : String(value)}</div>
         </div>
     );
 }
@@ -210,9 +211,20 @@ export default function AccountPage() {
     const [savingAmatur, setSavingAmatur] = useState(false);
     const [amaturMsg, setAmaturMsg] = useState<string | null>(null);
 
+    // Penalizări / ban (ciclu care se resetează după expirarea banului)
+    const [penaltyPoints, setPenaltyPoints] = useState(0); // puncte curente (după ultimul reset)
+    const [bannedUntil, setBannedUntil] = useState<Date | null>(null);
+    const [penaltyAllTime, setPenaltyAllTime] = useState(0); // informativ
+    const [penaltyErr, setPenaltyErr] = useState<string | null>(null);
 
 
 
+
+
+
+
+    // Detalii penalizări (pentru afișare "info")
+    const [penaltyDetails, setPenaltyDetails] = useState<{ at: Date; pts: number; reason: string }[]>([]);
     useEffect(() => {
         let mounted = true;
 
@@ -302,6 +314,100 @@ export default function AccountPage() {
             mounted = false;
         };
     }, []);
+
+    useEffect(() => {
+        if (!playerIdForRegs) return;
+
+        (async () => {
+            try {
+                setPenaltyErr(null);
+
+                const { data, error } = await supabase
+                    .from("registrations")
+                    .select("withdraw_penalty,no_show_penalty,penalty_applied,withdrawn_at,tournaments(start_at)")
+                    .eq("player_id", playerIdForRegs);
+
+                if (error) throw error;
+
+                const events: { at: Date; pts: number; reason: string }[] = [];
+                const details: { at: Date; pts: number; reason: string }[] = [];
+                let totalAll = 0;
+
+                for (const r of (data ?? []) as any[]) {
+                    const w = Number(r?.withdraw_penalty ?? 0);
+                    const n = Number(r?.no_show_penalty ?? 0);
+                    const applied = Number(r?.penalty_applied ?? 0);
+
+                    // Prioritate: penalty_applied (dacă e setat), altfel suma (withdraw + no_show)
+                    const sum = (Number.isFinite(w) ? w : 0) + (Number.isFinite(n) ? n : 0);
+                    const pts = (Number.isFinite(applied) && applied > 0) ? applied : sum;
+
+                    if (!Number.isFinite(pts) || pts <= 0) continue;
+
+                    totalAll += pts;
+
+                    const atStr = (w > 0 ? r?.withdrawn_at : null) ?? r?.tournaments?.start_at ?? null;
+                    if (!atStr) continue;
+
+                    const at = new Date(atStr);
+                    if (Number.isNaN(at.getTime())) continue;
+
+                    const reason =
+                        String(r?.penalty_reason ?? "").trim() ||
+                        (w > 0 ? "Retragere târzie" : n > 0 ? "Neprezentare" : "Penalizare");
+
+                    events.push({ at, pts, reason });
+                    details.push({ at, pts, reason });
+                }
+
+                events.sort((a, b) => a.at.getTime() - b.at.getTime());
+
+                const BAN_THRESHOLD = 6; // pragul de puncte
+                const BAN_DAYS = 90; // ~3 luni
+
+                let curPts = 0;
+                let banUntil: Date | null = null;
+
+                for (const ev of events) {
+                    // dacă există ban și a expirat înainte de evenimentul curent -> resetăm ciclul
+                    if (banUntil && ev.at.getTime() > banUntil.getTime()) {
+                        curPts = 0;
+                        banUntil = null;
+                    }
+
+                    curPts += ev.pts;
+
+                    // când depășim pragul -> setăm banul de la acest eveniment
+                    if (curPts >= BAN_THRESHOLD) {
+                        banUntil = new Date(ev.at.getTime() + BAN_DAYS * 24 * 60 * 60 * 1000);
+                    }
+                }
+
+                // dacă banul a expirat deja acum -> resetăm și afișăm 0
+                const now = new Date();
+                if (banUntil && now.getTime() > banUntil.getTime()) {
+                    curPts = 0;
+                    banUntil = null;
+                }
+
+                setPenaltyAllTime(totalAll);
+                setPenaltyPoints(curPts);
+                setBannedUntil(banUntil);
+
+                // pentru afișare: cele mai recente evenimente primele
+                details.sort((a, b) => b.at.getTime() - a.at.getTime());
+                setPenaltyDetails(details);
+            } catch (e: any) {
+                setPenaltyErr(e?.message ?? "Eroare la calcul penalizări.");
+                setPenaltyAllTime(0);
+                setPenaltyPoints(0);
+                setBannedUntil(null);
+                setPenaltyDetails([]);
+            }
+        })();
+    }, [playerIdForRegs]);
+
+
 
     const name =
         (player?.display_name ?? "").trim() ||
@@ -427,113 +533,169 @@ export default function AccountPage() {
                                 <Row label="Admin" value={player.is_admin ? "DA" : "NU"} />
                                 <Row label="MP Actual" value={player.mp ?? 0} />
                                 <Row label="MP Max" value={player.mp_max ?? (player.mp ?? 0)} />
-                                            <div style={{ display: "grid", gridTemplateColumns: "190px 1fr", gap: 10 }}>
-                                                <div style={{ opacity: 0.7 }}>MP circuit Amatur</div>
+                                <div style={{ display: "grid", gridTemplateColumns: "190px 1fr", gap: 10 }}>
+                                    <div style={{ opacity: 0.7 }}>MP circuit Amatur</div>
 
-                                                {!editAmatur ? (
-                                                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                                                        <b>{player.amatur_mp ?? 0}</b>
-                                                        <button
-                                                            onClick={() => {
-                                                                setEditAmatur(true);
-                                                                setAmaturValue(player.amatur_mp ?? 0);
-                                                                setAmaturMsg(null);
-                                                            }}
-                                                            style={{
-                                                                border: "1px solid #444",
-                                                                borderRadius: 8,
-                                                                padding: "4px 8px",
-                                                                cursor: "pointer",
-                                                            }}
-                                                        >
-                                                            Editează
-                                                        </button>
+                                    {!editAmatur ? (
+                                        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                                            <b>{player.amatur_mp ?? 0}</b>
+                                            <button
+                                                onClick={() => {
+                                                    setEditAmatur(true);
+                                                    setAmaturValue(player.amatur_mp ?? 0);
+                                                    setAmaturMsg(null);
+                                                }}
+                                                style={{
+                                                    border: "1px solid #444",
+                                                    borderRadius: 8,
+                                                    padding: "4px 8px",
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                Editează
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={amaturValue}
+                                                onChange={(e) => setAmaturValue(Number(e.target.value))}
+                                                style={{
+                                                    width: 80,
+                                                    padding: "6px 8px",
+                                                    borderRadius: 8,
+                                                    border: "1px solid #444",
+                                                    background: "transparent",
+                                                    color: "inherit",
+                                                }}
+                                            />
+
+                                            <button
+                                                disabled={savingAmatur}
+                                                onClick={async () => {
+                                                    setSavingAmatur(true);
+                                                    setAmaturMsg(null);
+
+                                                    const val = Number(amaturValue);
+                                                    if (!Number.isFinite(val) || val < 0) {
+                                                        setAmaturMsg("Valoare invalidă.");
+                                                        setSavingAmatur(false);
+                                                        return;
+                                                    }
+
+                                                    const { error } = await supabase
+                                                        .from("players")
+                                                        .update({ amatur_mp: val })
+                                                        .eq("id", player.id);
+
+                                                    if (error) {
+                                                        setAmaturMsg("Eroare la salvare.");
+                                                    } else {
+                                                        setPlayer((prev) =>
+                                                            prev ? { ...prev, amatur_mp: val } : prev
+                                                        );
+                                                        setAmaturMsg("Salvat ✔");
+                                                        setEditAmatur(false);
+                                                    }
+
+                                                    setSavingAmatur(false);
+                                                }}
+                                                style={{
+                                                    border: "1px solid #444",
+                                                    borderRadius: 8,
+                                                    padding: "6px 10px",
+                                                    cursor: savingAmatur ? "not-allowed" : "pointer",
+                                                    opacity: savingAmatur ? 0.6 : 1,
+                                                }}
+                                            >
+                                                Salvează
+                                            </button>
+
+                                            <button
+                                                onClick={() => {
+                                                    setEditAmatur(false);
+                                                    setAmaturValue(player.amatur_mp ?? 0);
+                                                    setAmaturMsg(null);
+                                                }}
+                                                style={{
+                                                    border: "none",
+                                                    background: "transparent",
+                                                    cursor: "pointer",
+                                                    opacity: 0.6,
+                                                }}
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <Row
+                                    label="Puncte penalizare"
+                                    value={
+                                        <span style={{ color: penaltyPoints > 0 ? "red" : "inherit", fontWeight: 900 }}>
+                                            {penaltyPoints}
+                                        </span>
+                                    }
+                                />
+                                <Row
+                                    label="Ban"
+                                    value={
+                                        bannedUntil ? (
+                                            <span style={{ color: "red", fontWeight: 900 }}>
+                                                Banat până la {bannedUntil.toLocaleDateString("ro-RO")}
+                                            </span>
+                                        ) : (
+                                            "Nu ești banat"
+                                        )
+                                    }
+                                />
+                                <Row
+                                    label="Penalizări totale (info)"
+                                    value={
+                                        <div style={{ display: "grid", gap: 6 }}>
+                                            {penaltyDetails.length === 0 ? (
+                                                <span style={{ opacity: 0.8 }}>Nu ai penalizări.</span>
+                                            ) : (
+                                                <>
+                                                    {penaltyDetails.slice(0, 6).map((p, i) => (
+                                                        <div key={i} style={{ opacity: 0.95, fontWeight: 650 }}>
+                                                            • {p.reason} (+{p.pts}) — {p.at.toLocaleDateString("ro-RO")}
+                                                        </div>
+                                                    ))}
+                                                    {penaltyDetails.length > 6 ? (
+                                                        <div style={{ opacity: 0.75, fontSize: 12 }}>
+                                                            …și încă {penaltyDetails.length - 6} evenimente
+                                                        </div>
+                                                    ) : null}
+                                                    <div style={{ opacity: 0.75, fontSize: 12 }}>
+                                                        Total all-time: <b>{penaltyAllTime}</b> puncte
                                                     </div>
-                                                ) : (
-                                                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                                        <input
-                                                            type="number"
-                                                            min={0}
-                                                            value={amaturValue}
-                                                            onChange={(e) => setAmaturValue(Number(e.target.value))}
-                                                            style={{
-                                                                width: 80,
-                                                                padding: "6px 8px",
-                                                                borderRadius: 8,
-                                                                border: "1px solid #444",
-                                                                background: "transparent",
-                                                                color: "inherit",
-                                                            }}
-                                                        />
-
-                                                        <button
-                                                            disabled={savingAmatur}
-                                                            onClick={async () => {
-                                                                setSavingAmatur(true);
-                                                                setAmaturMsg(null);
-
-                                                                const val = Number(amaturValue);
-                                                                if (!Number.isFinite(val) || val < 0) {
-                                                                    setAmaturMsg("Valoare invalidă.");
-                                                                    setSavingAmatur(false);
-                                                                    return;
-                                                                }
-
-                                                                const { error } = await supabase
-                                                                    .from("players")
-                                                                    .update({ amatur_mp: val })
-                                                                    .eq("id", player.id);
-
-                                                                if (error) {
-                                                                    setAmaturMsg("Eroare la salvare.");
-                                                                } else {
-                                                                    setPlayer((prev) =>
-                                                                        prev ? { ...prev, amatur_mp: val } : prev
-                                                                    );
-                                                                    setAmaturMsg("Salvat ✔");
-                                                                    setEditAmatur(false);
-                                                                }
-
-                                                                setSavingAmatur(false);
-                                                            }}
-                                                            style={{
-                                                                border: "1px solid #444",
-                                                                borderRadius: 8,
-                                                                padding: "6px 10px",
-                                                                cursor: savingAmatur ? "not-allowed" : "pointer",
-                                                                opacity: savingAmatur ? 0.6 : 1,
-                                                            }}
-                                                        >
-                                                            Salvează
-                                                        </button>
-
-                                                        <button
-                                                            onClick={() => {
-                                                                setEditAmatur(false);
-                                                                setAmaturValue(player.amatur_mp ?? 0);
-                                                                setAmaturMsg(null);
-                                                            }}
-                                                            style={{
-                                                                border: "none",
-                                                                background: "transparent",
-                                                                cursor: "pointer",
-                                                                opacity: 0.6,
-                                                            }}
-                                                        >
-                                                            ✕
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {amaturMsg && (
-                                                <div style={{ marginLeft: 200, fontSize: 13, opacity: 0.85 }}>
-                                                    {amaturMsg}
-                                                </div>
+                                                </>
                                             )}
+                                        </div>
+                                    }
+                                />
+
+                                {penaltyErr ? (
+                                    <div style={{ marginLeft: 200, fontSize: 13, color: "red", opacity: 0.9 }}>
+                                        {penaltyErr}
+                                    </div>
+                                ) : null}
+
+
+
+
+                                {amaturMsg && (
+                                    <div style={{ marginLeft: 200, fontSize: 13, opacity: 0.85 }}>
+                                        {amaturMsg}
+                                    </div>
+                                )}
                                 <Row label="Categoria jucătorului" value={playerCat} />
                                 <div style={{ marginTop: 10 }}>
-                                    <div style={{ fontWeight: 900, marginBottom: 8 }}>Ultimele MP Turneu (max 4) folosite la medie</div>
+                                    <div style={{ fontWeight: 900, marginBottom: 8 }}>Doar ultimele 4 MP Turneu sunt folosite la medie (excluse ZV)</div>
 
                                     {regsLoading ? (
                                         <div style={{ opacity: 0.85 }}>Se calculează…</div>

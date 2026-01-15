@@ -35,6 +35,8 @@ type RegistrationRow = {
     withdrawn_at: string | null;
     penalty_applied: number;
     penalty_reason: string | null;
+    attended?: boolean | null;
+    no_show_penalty?: number | null; // penalizare no-show (AN) // prezență marcată de admin (true/false)
     players:
     | {
         full_name: string;
@@ -544,15 +546,16 @@ export default function AdminTournamentPage() {
     const [showResetOptions, setShowResetOptions] = useState(false);
     const [tournamentStatus, setTournamentStatus] = useState<string>("UPCOMING");
     const [registrationOpen, setRegistrationOpen] = useState<boolean>(true);
-    const [isRated, setIsRated] = useState<boolean>(true);
 
     // ✅ pentru locuri libere
     const [maxPlayers, setMaxPlayers] = useState<number | null>(null);
 
     // ✅ listă participanți (tabel)
-    const [participants, setParticipants] = useState<{ id: string; name: string; mp: number; mpMax: number; category: PlayerCat }[]>([]);
+    const [participants, setParticipants] = useState<{ id: string; name: string; mp: number; mpMax: number; mpReg: number; category: PlayerCat; present: boolean | null; attended: boolean | null; regStatus: string; absence: "AM" | "AN" | null }[]>([]);
 
-    const registered = useMemo(() => rows.filter((r) => r.status === "REGISTERED"), [rows]);
+    const activeParticipants = useMemo(() => participants.filter((p) => p.regStatus === "REGISTERED" && p.present !== false && p.attended !== false), [participants]);
+
+    const registered = useMemo(() => rows.filter((r) => r.status === "REGISTERED" && (r as any).present !== false && (r as any).attended !== false), [rows]);
 
     const registeredCount = registered.length;
     // Pentru formatul "Inferioare → Superioare → KO": dacă sunt 3–9 jucători,
@@ -563,7 +566,8 @@ export default function AdminTournamentPage() {
 
     // Participanți derivați din rows (și sortați)
     useEffect(() => {
-        const list = registered
+        const list = rows
+            .filter((r) => r.status === "REGISTERED")
             .map((r) => {
                 const p = r.players;
 
@@ -575,10 +579,23 @@ export default function AdminTournamentPage() {
                     "—";
 
                 const mp = normalizeNum(p?.mp, 2);
-                const mpMax = normalizeNum(p?.mp_max, mp);
+                const mpMaxBase = normalizeNum(p?.mp_max, mp);
+                const mpAmatur = normalizeNum((p as any)?.amatur_mp, 0);
+                const mpMax = Math.max(mpMaxBase, mpAmatur);
                 const mpReg = normalizeNum((r as any).mp_before, 2);
 
-                return { id: r.player_id, name, mp, mpMax, mpReg, category: playerCategoryFromMpMax(mpMax) };
+                const present = ((r as any).present ?? null) as boolean | null;
+                const attended = ((r as any).attended ?? null) as boolean | null;
+
+                const noShow = normalizeNum((r as any).no_show_penalty, 0);
+                const applied = normalizeNum((r as any).penalty_applied, 0);
+
+                // Dacă e marcat absent (present/attended=false), determinăm tipul:
+                // AN dacă are penalizare (>=2), altfel AM
+                const isAbsent = present === false || attended === false;
+                const absence: "AM" | "AN" | null = isAbsent ? ((noShow >= 2 || applied >= 2) ? "AN" : "AM") : null;
+
+                return { id: r.player_id, name, mp, mpMax, mpReg, category: playerCategoryFromMpMax(mpMax), present, attended, regStatus: r.status, absence };
             })
             .sort((a, b) => {
                 if (b.mp !== a.mp) return b.mp - a.mp; // MP desc
@@ -586,9 +603,9 @@ export default function AdminTournamentPage() {
             });
 
         setParticipants(list);
-    }, [registered]);
+    }, [rows]);
 
-    const participantCount = participants.length;
+    const participantCount = activeParticipants.length;
     const spotsLeft = typeof maxPlayers === "number" ? Math.max(0, maxPlayers - participantCount) : null;
 
     async function setTournamentStatusSafe(next: "UPCOMING" | "LIVE" | "FINISHED" | "CANCELLED") {
@@ -596,6 +613,81 @@ export default function AdminTournamentPage() {
         if (error) return alert("Eroare status: " + error.message);
 
         setTournamentStatus(next);
+        await load();
+    }
+
+
+    // ✅ Absență (AM/AN). Implicit toți sunt considerați prezenți; marchezi DOAR absenții.
+    // AM = absență motivată (0 puncte)
+    // AN = absență nemotivată / no-show (+2 puncte)
+    async function markAbsence(playerId: string, kind: "AM" | "AN") {
+        const points = kind === "AN" ? 2 : 0;
+        const reason = kind === "AN" ? "Absență nemotivată (+2 puncte)" : "Absență motivată (0 puncte)";
+
+        // Citim starea curentă ca să evităm update-uri inutile
+        const { data: reg, error: regErr } = await supabase
+            .from("registrations")
+            .select("present,attended,no_show_penalty,penalty_applied")
+            .eq("tournament_id", tournamentId)
+            .eq("player_id", playerId)
+            .maybeSingle();
+
+        if (regErr) {
+            alert("Eroare citire registration: " + regErr.message);
+            return;
+        }
+
+        const currentPresent = (reg as any)?.present as boolean | null | undefined;
+        const currentAttended = (reg as any)?.attended as boolean | null | undefined;
+        const currentNoShow = normalizeNum((reg as any)?.no_show_penalty, 0);
+        const currentApplied = normalizeNum((reg as any)?.penalty_applied, 0);
+
+        const alreadyAbsent = currentPresent === false || currentAttended === false;
+        const alreadySameKind =
+            alreadyAbsent &&
+            ((points >= 2 && (currentNoShow >= 2 || currentApplied >= 2)) || (points === 0 && currentNoShow === 0 && currentApplied === 0));
+
+        if (alreadySameKind) {
+            await load();
+            return;
+        }
+
+        const { error: upErr } = await supabase
+            .from("registrations")
+            .update({
+                present: false,
+                attended: false,
+                no_show_penalty: points,
+                penalty_applied: points,
+                penalty_reason: reason,
+            } as any)
+            .eq("tournament_id", tournamentId)
+            .eq("player_id", playerId);
+
+        if (upErr) return alert("Eroare setare absență: " + upErr.message);
+
+        await load();
+    }
+
+    // Revenire (demarcare) a absenței: revine la starea "neconfirmat" (null) și șterge penalizarea no-show.
+    async function clearAbsence(playerId: string) {
+        const { error: upErr } = await supabase
+            .from("registrations")
+            .update({
+                present: null,
+                attended: null,
+                no_show_penalty: 0,
+                penalty_applied: 0,
+                penalty_reason: null,
+            } as any)
+            .eq("tournament_id", tournamentId)
+            .eq("player_id", playerId);
+
+        if (upErr) {
+            alert("Eroare demarcare absență: " + upErr.message);
+            return;
+        }
+
         await load();
     }
 
@@ -679,13 +771,12 @@ export default function AdminTournamentPage() {
             return;
         }
 
-        const { data: t } = await supabase.from("tournaments").select("title,format,status,registration_open,max_players,places_saved_at,is_rated").eq("id", tournamentId).single();
+        const { data: t } = await supabase.from("tournaments").select("title,format,status,registration_open,max_players,places_saved_at").eq("id", tournamentId).single();
 
         setTitle(t?.title ?? "");
         setFormat((t?.format as TournamentFormat) ?? "LOWER_UPPER_KO");
         setTournamentStatus(t?.status ?? "UPCOMING");
         setRegistrationOpen(!!t?.registration_open);
-        setIsRated((t as any)?.is_rated === false ? false : true);
         setMaxPlayers(typeof t?.max_players === "number" ? t.max_players : null);
 
         const psa = (t as any)?.places_saved_at as string | null | undefined;
@@ -706,14 +797,35 @@ export default function AdminTournamentPage() {
             .from("registrations")
             .select(
                 `
-        player_id,status,withdrawn_at,penalty_applied,penalty_reason,
-        players:player_id(full_name,display_name,first_name,last_name,mp,mp_max,penalty_points,banned_until)
+        player_id,status,withdrawn_at,penalty_applied,penalty_reason,present,attended,no_show_penalty,
+        players:player_id(full_name,display_name,first_name,last_name,mp,mp_max,amatur_mp,penalty_points,banned_until)
       `
             )
             .eq("tournament_id", tournamentId)
             .order("registered_at", { ascending: true });
 
         setRows((regs as any) ?? []);
+
+        // Sincronizare MP Max cu MP Amator (dacă există și e mai mare)
+        // Turneele naționale/amator pot ridica MP Max automat.
+        try {
+            const toSync: { id: string; newMpMax: number }[] = [];
+            for (const r of (regs as any[]) ?? []) {
+                const p = (r as any)?.players;
+                const id = (r as any)?.player_id as string | undefined;
+                if (!id) continue;
+                const mpMax = normalizeNum(p?.mp_max, 0);
+                const mpAmatur = normalizeNum((p as any)?.amatur_mp, 0);
+                if (mpAmatur > mpMax) toSync.push({ id, newMpMax: mpAmatur });
+            }
+
+            // Update doar când e necesar (și doar câteva rânduri, de obicei)
+            for (const u of toSync) {
+                await supabase.from("players").update({ mp_max: u.newMpMax } as any).eq("id", u.id);
+            }
+        } catch {
+            // dacă RLS nu permite update, nu blocăm pagina; rămâne doar afișarea cu max(mp_max, amatur_mp)
+        }
 
         const gl = await loadGroups("LOWER_GROUP");
         const gu = await loadGroups("UPPER_GROUP");
@@ -1191,7 +1303,7 @@ export default function AdminTournamentPage() {
 
     // ⭐️ NOU: flux 1-click pentru "grupe + meciuri" cu fallback "Liga"
     async function generateLowerGroupsAndMatches() {
-        const N = participants.length;
+        const N = activeParticipants.length;
 
         if (N < 3) return alert("Ai nevoie de minim 3 participanți REGISTERED.");
         if (groupsLower.length > 0 || matchesLower.length > 0) return
@@ -1199,7 +1311,7 @@ export default function AdminTournamentPage() {
         const G = chooseGroupCount(N, 4, 6, 5);
 
         // seed list: descrescător MP (deja e sortat)
-        const seedIds = participants.map((p) => p.id);
+        const seedIds = activeParticipants.map((p) => p.id);
 
         if (!G) {
             // fallback: Liga (fiecare cu fiecare)
@@ -1292,7 +1404,7 @@ export default function AdminTournamentPage() {
 
     const overallRanking = useMemo(() => {
         // baza: participanții (MP la înscriere = mp curent din profil, în lipsa unui snapshot în registrations)
-        const base = participants.map((p) => ({
+        const base = activeParticipants.map((p) => ({
             id: p.id,
             name: p.name,
 
@@ -1399,7 +1511,7 @@ export default function AdminTournamentPage() {
         // - bonus: #1 +6, #2 +4, #3/#4 +2
         // - mpTournament = mpSector + bonus
         // MP sector pe blocuri de 4 din LISTA DE ÎNSCRIERE (nu din clasamentul final)
-        const regSorted = [...participants].sort((a, b) => {
+        const regSorted = [...activeParticipants].sort((a, b) => {
             if (b.mp !== a.mp) return b.mp - a.mp;
             return a.name.localeCompare(b.name);
         });
@@ -1435,7 +1547,7 @@ export default function AdminTournamentPage() {
             }
         }
         return sorted;
-    }, [participants, matchesKO, podium, groupsUpper, groupsLower]);
+    }, [activeParticipants, matchesKO, podium, groupsUpper, groupsLower]);
 
     // ✅ Salvează locul final în DB (registrations.final_place) + opțional etichetă KO (registrations.ko_label)
     // Necesită coloane:
@@ -1668,8 +1780,9 @@ export default function AdminTournamentPage() {
                             <thead>
                                 <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
                                     <th style={{ padding: "8px 6px", width: 44 }}>#</th>
-                                    <th style={{ padding: "8px 6px" }}>Nume Prenume</th>
+                                    <th style={{ padding: "8px 6px", width: 120 }}>Nume Prenume</th>
                                     <th style={{ padding: "8px 6px", width: 120 }}>Categorie</th>
+                                    <th style={{ padding: "8px 6px", width: 180 }}>Absență</th>
                                     <th style={{ padding: "8px 6px", width: 90, textAlign: "right" }}>MP</th>
                                 </tr>
                             </thead>
@@ -1679,6 +1792,48 @@ export default function AdminTournamentPage() {
                                         <td style={{ padding: "8px 6px" }}>{idx + 1}</td>
                                         <td style={{ padding: "8px 6px", fontWeight: 900 }}>{p.name}</td>
                                         <td style={{ padding: "8px 6px" }}>{catLabel(p.category)}</td>
+                                        <td style={{ padding: "8px 6px" }}>
+                                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                                                <button
+                                                    onClick={() => markAbsence(p.id, "AM")}
+                                                    title="Absență motivată (fără penalizare)"
+                                                    style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #ddd", fontWeight: 1000, fontSize: 12 }}
+                                                >
+                                                    AM
+                                                </button>
+                                                <button
+                                                    onClick={() => markAbsence(p.id, "AN")}
+                                                    title="Absență nemotivată (+2 puncte penalizare)"
+                                                    style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #ddd", fontWeight: 1000, fontSize: 12 }}
+                                                >
+                                                    AN
+                                                </button>
+
+                                                {p.absence ? (
+                                                    <>
+                                                        <span style={{ fontSize: 12, opacity: 0.85 }}>
+                                                            Marcat: <b>{p.absence}</b>
+                                                        </span>
+                                                        <button
+                                                            onClick={() => clearAbsence(p.id)}
+                                                            title="Demarchează absența (revine la neconfirmat)"
+                                                            style={{
+                                                                padding: "6px 10px",
+                                                                borderRadius: 10,
+                                                                border: "1px solid #ddd",
+                                                                fontWeight: 900,
+                                                                fontSize: 12,
+                                                                opacity: 0.9,
+                                                            }}
+                                                        >
+                                                            ↩
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <span style={{ fontSize: 12, opacity: 0.65 }}>—</span>
+                                                )}
+                                            </div>
+                                        </td>
                                         <td style={{ padding: "8px 6px", textAlign: "right" }}>{p.mp}</td>
                                     </tr>
                                 ))}
