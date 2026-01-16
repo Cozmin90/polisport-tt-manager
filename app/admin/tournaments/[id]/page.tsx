@@ -1508,7 +1508,7 @@ export default function AdminTournamentPage() {
         // Calcul MP Turneu:
         // - sector = blocuri de 4 în clasamentul final (1-4, 5-8, ...)
         // - mpSector = media MP la înscriere a celor din bloc (MP din lista de înscriere)
-        // - bonus: #1 +6, #2 +4, #3/#4 +2
+        // - bonus: #1 +6, #2 +4, #3/#4 +3
         // - mpTournament = mpSector + bonus
         // MP sector pe blocuri de 4 din LISTA DE ÎNSCRIERE (nu din clasamentul final)
         const regSorted = [...activeParticipants].sort((a, b) => {
@@ -1525,8 +1525,6 @@ export default function AdminTournamentPage() {
             regMeans.push(mean);
         }
 
-        const hasKO = matchesKO.length > 0;
-
         for (let i = 0; i < sorted.length; i += 4) {
             const block = sorted.slice(i, i + 4);
             const blockIndex = Math.floor(i / 4);
@@ -1538,7 +1536,21 @@ export default function AdminTournamentPage() {
             for (let j = 0; j < block.length; j++) {
                 const pos = i + j + 1;
 
-                const bonus = pos === 1 ? 6 : pos === 2 ? 4 : pos === 3 ? 2 : (hasKO && pos === 4 ? 2 : 0);
+                // Bonusuri (pentru a diferenția mai bine turneele cu mulți jucători noi / MP=2):
+                // 1: +6, 2: +4, 3-4: +3 (două locuri 3 – pierzătorii semifinalelor nu joacă finala mică),
+                // 5-8: +2, 9-12: +1
+                const bonus =
+                    pos === 1
+                        ? 6
+                        : pos === 2
+                            ? 4
+                            : pos === 3 || pos === 4
+                                ? 3
+                                : pos >= 5 && pos <= 8
+                                    ? 2
+                                    : pos >= 9 && pos <= 12
+                                        ? 1
+                                        : 0;
 
                 const mpTournament = mpSector + bonus;
 
