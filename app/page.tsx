@@ -5,7 +5,6 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 import Image from "next/image";
-import WhatsAppInvite from "../components/WhatsAppInvite";
 import WhatsAppButton from "../components/WhatsAppButton";
 
 type TournamentCategory = "HOBBY" | "ADVANCED" | "ELITE" | "ALL";
@@ -22,6 +21,9 @@ type Tournament = {
 
     // noi
     is_rated?: boolean;
+    // categoria selectată la creare (admin/tournaments/new)
+    // (dacă nu folosești allowed_categories în DB)
+    category?: TournamentCategory | null;
     allowed_categories?: TournamentCategory[] | null;
 
     // donație minimă recomandată (text)
@@ -47,6 +49,19 @@ function catLabel(c: TournamentCategory) {
     return "Elite";
 }
 
+function catsDisplay(cats: TournamentCategory[]) {
+    // Dacă e Open (ALL), afișăm explicit toate categoriile, nu doar textul "ALL".
+    if (cats.includes("ALL")) return "ALL (Hobby, Avansați, Elite)";
+    return cats.map(catLabel).join(", ");
+}
+
+// Pentru UI (carduri / afișare publică) vrem să arătăm strict categoria turneului,
+// nu lista allowed_categories (care e pentru eligibilitate).
+function categoryDisplayFromCategory(cat: TournamentCategory | null | undefined) {
+    if (!cat || cat === "ALL") return "ALL (Hobby, Avansați, Elite)";
+    return catLabel(cat);
+}
+
 function playerCategory(mpMax: number): Exclude<TournamentCategory, "ALL"> {
     if (mpMax < 20) return "HOBBY";
     if (mpMax < 40) return "ADVANCED";
@@ -66,6 +81,13 @@ function toLocalRO24(iso: string) {
     } catch {
         return iso;
     }
+}
+
+function cardCategoryText(t: Tournament) {
+    const cat = (t.category ?? "ALL") as TournamentCategory;
+    // Pe card arătăm DOAR categoria turneului. (Regula "o categorie mai sus" rămâne în regulament.)
+    if (cat === "ALL") return "ALL (Hobby, Avansați, Elite)";
+    return catLabel(cat);
 }
 
 export default function HomePage() {
@@ -204,16 +226,25 @@ export default function HomePage() {
             } else {
                 const tData = (tDataRaw ?? []) as any[];
 
-                // ✅ Fix #1: normalizează categoriile (și acceptă ALL)
-                const normalizeAllowed = (x: any): TournamentCategory[] => {
-                    if (Array.isArray(x) && x.length > 0) return x as TournamentCategory[];
+                // Prioritate pentru eligibilitate:
+                // 1) allowed_categories (dacă există și are valori)
+                // 2) category (câmpul salvat din UI la creare)
+                // 3) fallback: ALL
+                const normalizeAllowed = (t: any): TournamentCategory[] => {
+                    if (Array.isArray(t?.allowed_categories) && t.allowed_categories.length > 0) {
+                        return t.allowed_categories as TournamentCategory[];
+                    }
+
+                    const cat = (t?.category ?? null) as TournamentCategory | null;
+                    if (cat) return [cat];
+
                     return ["ALL"]; // default: oricine
                 };
 
                 const normalized: Tournament[] = tData.map((t) => ({
                     ...t,
                     is_rated: typeof t.is_rated === "boolean" ? t.is_rated : true,
-                    allowed_categories: normalizeAllowed(t.allowed_categories),
+                    allowed_categories: normalizeAllowed(t),
                 }));
 
                 setTournaments(normalized);
@@ -332,9 +363,7 @@ export default function HomePage() {
         // dacă turneul e ALL -> acceptă pe oricine
         if (!allowed.includes("ALL") && !allowed.includes(myCat)) {
             alert(
-                `Nu ești eligibil.\nCategoria ta: ${catLabel(myCat)} (MP Max: ${userMpMax})\nTurneul acceptă: ${allowed
-                    .map(catLabel)
-                    .join(", ")}`
+                `Nu ești eligibil.\nCategoria ta: ${catLabel(myCat)} (MP Max: ${userMpMax})\nTurneul acceptă: ${catsDisplay(allowed)}`
             );
             return;
         }
@@ -359,7 +388,6 @@ export default function HomePage() {
         }
 
         const mpBefore = typeof (pNow as any)?.mp === "number" ? ((pNow as any).mp as number) : 0;
-
 
         // Dacă există deja o înregistrare (ex: WITHDRAWN), o reactivăm în loc să inserăm una nouă
         const { data: existingReg, error: existingErr } = await supabase
@@ -551,19 +579,15 @@ export default function HomePage() {
         }
     }
 
-
-
-    function buildWhatsappAnnouncement(t: any) {
+    function buildWhatsappAnnouncement(t: Tournament) {
         const title = t?.title ?? "Turneu nou";
         const when = t?.start_at ? new Date(t.start_at).toLocaleString("ro-RO") : "—";
         const location = t?.location ?? "—";
         const format = t?.format ?? "—";
         const type = t?.is_rated ? "Punctat" : "Agrement";
 
-        const cats =
-            Array.isArray(t?.allowed_categories) && t.allowed_categories.length
-                ? t.allowed_categories.map((c: any) => catLabel(c)).join(", ")
-                : catLabel("ALL" as any);
+        // Pentru mesajul public, păstrăm aceeași logică ca pe card: afișăm DOAR categoria turneului.
+        const cats = cardCategoryText(t);
 
         const donation = ((t as any).donation_info ?? "").toString().trim() || "Gratuit";
 
@@ -587,7 +611,6 @@ export default function HomePage() {
         const publicUrl =
             typeof window !== "undefined" ? `${window.location.origin}/tournaments/${t.id}` : `/tournaments/${t.id}`;
 
-        // Notă: folosim emoji-uri foarte comune (compatibile WhatsApp)
         return [
             `TURNEU NOU: ${title}`,
             ``,
@@ -595,7 +618,7 @@ export default function HomePage() {
             `Locație: ${location}`,
             `Tip: ${type}`,
             `Format: ${format}`,
-            `Categorii: ${cats}`,
+            `Categorie: ${cats}`,
             `Donație minimă recomandată: ${donation}`,
             `Înscrieri: ${regOpen}`,
             `Locuri: ${slotsLine}`,
@@ -605,7 +628,7 @@ export default function HomePage() {
         ].join("\n");
     }
 
-    async function announceOnWhatsApp(t: any) {
+    async function announceOnWhatsApp(t: Tournament) {
         const msg = buildWhatsappAnnouncement(t);
 
         // Copiem mesajul în clipboard (fallback util)
@@ -629,7 +652,6 @@ export default function HomePage() {
         lineHeight: 1,
     };
 
-
     return (
         <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
             {/* LOGO sus, centrat */}
@@ -645,7 +667,7 @@ export default function HomePage() {
             </div>
             <header style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
                 <div>
-                    <h1 style={{ fontSize: 28, fontWeight: 800, }}>PoliSport Table Tennis</h1>
+                    <h1 style={{ fontSize: 28, fontWeight: 800 }}>PoliSport Table Tennis</h1>
                     <p style={{ opacity: 0.8 }}>Manager Turnee & jucători @ UNSTPB</p>
                     <p style={{ opacity: 0.8 }}>
                         <Link
@@ -674,10 +696,7 @@ export default function HomePage() {
                     >
                         {userEmail ? (
                             <>
-                                <Link
-                                    href="/account"
-                                    style={navItemStyle}
-                                >
+                                <Link href="/account" style={navItemStyle}>
                                     Contul meu
                                 </Link>
 
@@ -690,26 +709,17 @@ export default function HomePage() {
                             </>
                         ) : (
                             <>
-                                <Link
-                                    href="/login?mode=login"
-                                    style={navItemStyle}
-                                >
+                                <Link href="/login?mode=login" style={navItemStyle}>
                                     Login
                                 </Link>
 
-                                <Link
-                                    href="/login?mode=register"
-                                    style={navItemStyle}
-                                >
+                                <Link href="/login?mode=register" style={navItemStyle}>
                                     Register
                                 </Link>
                             </>
                         )}
 
-                        <Link
-                            href="/tournaments"
-                            style={navItemStyle}
-                        >
+                        <Link href="/tournaments" style={navItemStyle}>
                             Istoric Turnee
                         </Link>
                     </div>
@@ -746,7 +756,6 @@ export default function HomePage() {
                         </div>
                     )}
                 </div>
-
             </header>
 
             <section style={{ marginTop: 24 }}>
@@ -771,10 +780,13 @@ export default function HomePage() {
                             const regOpen = !!t.registration_open;
                             const notFull = !(t.is_full ?? false);
 
-                            // ✅ Fix #1: safe categories
-                            const allowed = Array.isArray(t.allowed_categories) && t.allowed_categories.length > 0
-                                ? (t.allowed_categories as TournamentCategory[])
-                                : (["ALL"] as TournamentCategory[]);
+                            // Eligibilitate (în spate) rămâne bazată pe allowed_categories.
+                            const allowed =
+                                Array.isArray(t.allowed_categories) && t.allowed_categories.length > 0
+                                    ? (t.allowed_categories as TournamentCategory[])
+                                    : t.category
+                                        ? ([t.category] as TournamentCategory[])
+                                        : (["ALL"] as TournamentCategory[]);
 
                             const canShowJoin = userId && regOpen && notFull && (reg?.status ?? null) !== "REGISTERED";
                             const canShowWithdraw = userId && regOpen && reg?.status === "REGISTERED";
@@ -785,19 +797,16 @@ export default function HomePage() {
                                         <div>
                                             <div style={{ fontWeight: 800 }}>{t.title}</div>
                                             <div style={{ opacity: 0.8, fontSize: 14 }}>
-                                                {/* ✅ 24h */}
                                                 {toLocalRO24(t.start_at)} • {t.location ?? "—"}
                                             </div>
 
                                             <div style={{ marginTop: 8, fontSize: 13, opacity: 0.9 }}>
                                                 <div>Tip: {t.is_rated ? "Punctat" : "Agrement"}</div>
-                                                <div>Categorii: {allowed.map(catLabel).join(", ")}</div>
+                                                {/* ✅ FIX: pe card afișăm doar categoria turneului (category), nu allowed_categories */}
+                                                <div>Categorii: {cardCategoryText(t)}</div>
                                                 <div>
                                                     Donație minimă recomandată:{" "}
-                                                    <b>
-                                                        {((t as any).donation_info ?? "").toString().trim() || "Gratuit"}
-
-                                                    </b>
+                                                    <b>{((t as any).donation_info ?? "").toString().trim() || "Gratuit"}</b>
                                                 </div>
                                             </div>
                                         </div>
@@ -832,7 +841,16 @@ export default function HomePage() {
                                         <div style={{ marginTop: 10, opacity: 0.8 }}>Autentifică-te ca să te înscrii.</div>
                                     ) : (
                                         <>
-                                            <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                                            <div
+                                                style={{
+                                                    marginTop: 10,
+                                                    display: "flex",
+                                                    justifyContent: "space-between",
+                                                    gap: 10,
+                                                    alignItems: "center",
+                                                    flexWrap: "wrap",
+                                                }}
+                                            >
                                                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                                                     {canShowJoin && (
                                                         <button
@@ -865,7 +883,6 @@ export default function HomePage() {
                                                     >
                                                         Vezi turneu
                                                     </Link>
-
                                                 </div>
 
                                                 {isAdmin ? (
@@ -903,24 +920,18 @@ export default function HomePage() {
                     </div>
                 )}
             </section>
+
             <div style={{ display: "flex", gap: 10, justifyContent: "center", alignItems: "center", flexWrap: "wrap", marginTop: 18 }}>
                 <div style={{ display: "inline-flex" }}>
                     <WhatsAppButton />
                 </div>
-          
             </div>
+
             <footer style={{ marginTop: 28, opacity: 0.85, fontSize: 13, textAlign: "center" }}>
-                Creat de{" "}
-                <span style={{ color: "#f5d000", fontWeight: 600 }}>
-                    Cristoiu Cozmin-Adrian
-                </span>{" "}
-                @ FIIR pentru comunitatea pasionaților de tenis de masă din
-                <span style={{ color: "#4169E1", fontWeight: 600 }}>
-                    {" "} UNSTPB
-                </span>{" "}
-
+                Creat de <span style={{ color: "#f5d000", fontWeight: 600 }}>Cristoiu Cozmin-Adrian</span> @ FIIR pentru
+                comunitatea pasionaților de tenis de masă din
+                <span style={{ color: "#4169E1", fontWeight: 600 }}> UNSTPB</span>
             </footer>
-
         </main>
     );
 }
