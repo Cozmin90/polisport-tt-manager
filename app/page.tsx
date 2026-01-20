@@ -356,22 +356,23 @@ export default function HomePage() {
             return;
         }
 
-        // eligibilitate pe MP_MAX + categorie turneu
+        // eligibilitate pe MP_MAX + categoria turneului (NU pe allowed_categories)
         const myCat = playerCategory(userMpMax);
-        const allowed = (t.allowed_categories ?? ["ALL"]) as TournamentCategory[];
+        const tCat = (t.category ?? "ALL") as TournamentCategory;
 
         // dacă turneul e ALL -> acceptă pe oricine
-        if (!allowed.includes("ALL") && !allowed.includes(myCat)) {
-            alert(
-                `Nu ești eligibil.\nCategoria ta: ${catLabel(myCat)} (MP Max: ${userMpMax})\nTurneul acceptă: ${catsDisplay(allowed)}`
-            );
-            return;
-        }
+        if (tCat !== "ALL") {
+            const nextCat: Exclude<TournamentCategory, "ALL"> =
+                myCat === "HOBBY" ? "ADVANCED" : myCat === "ADVANCED" ? "ELITE" : "ELITE";
 
-        // dacă e full (doar dacă avem calcule)
-        if (t.is_full) {
-            alert("Turneul este full.");
-            return;
+            const allowedForMe: TournamentCategory[] = [myCat, nextCat];
+
+            if (!allowedForMe.includes(tCat)) {
+                alert(
+                    `Nu ești eligibil.\nCategoria ta: ${catLabel(myCat)} (MP Max: ${userMpMax})\nCategoria turneului: ${catLabel(tCat as any)}`
+                );
+                return;
+            }
         }
 
         // snapshot MP pentru istoric (îngheață MP-ul cu care te-ai înscris)
