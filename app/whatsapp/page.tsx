@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 export default function WhatsAppPage() {
-    const inviteLink = "https://chat.whatsapp.com/IZMFjT03IebKgDblwSNb9Y";
+    const inviteLink = "https://chat.whatsapp.com/LWamu3NBeTyE4etl5i2HGv";
 
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(
         inviteLink
