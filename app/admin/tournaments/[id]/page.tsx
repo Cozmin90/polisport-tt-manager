@@ -1534,8 +1534,8 @@ export default function AdminTournamentPage() {
             id: p.id,
             name: p.name,
 
-            // MP la înscriere (folosit la calc MP sector)
-            mpReg: p.mp,
+            // MP la înscriere (snapshot din registrations.mp_before)
+            mpReg: p.mpReg,
 
             // Categoria jucătorului (H/A/E)
             cat: p.category,
@@ -1543,6 +1543,15 @@ export default function AdminTournamentPage() {
             // victorii în grupe
             winsLower: 0,
             winsUpper: 0,
+
+            // ✅ seturi în grupe (pentru setaveraj)
+            pfLower: 0,
+            paLower: 0,
+            pfUpper: 0,
+            paUpper: 0,
+
+            // ✅ victorii în KO (pentru total victorii turneu)
+            koWins: 0,
 
             // progres KO / grupe
             koRound: 0,
@@ -1585,15 +1594,48 @@ export default function AdminTournamentPage() {
             if (row) row.koRound = rr;
         }
 
-        // victorii + grupă/rank (prefer UPPER dacă există)
-        const upperByPlayer = new Map<string, { groupName: string; rank: number | null; wins: number }>();
-        for (const g of groupsUpper) {
-            for (const m of g.members) upperByPlayer.set(m.player_id, { groupName: g.name, rank: m.rank_in_group ?? null, wins: m.wins ?? 0 });
+        // ✅ KO wins (număr de meciuri KO câștigate)
+        const koWinsByPlayer = new Map<string, number>();
+        for (const m of matchesKO) {
+            if (!m.winner_id) continue;
+            koWinsByPlayer.set(m.winner_id, (koWinsByPlayer.get(m.winner_id) ?? 0) + 1);
+        }
+        for (const [id, w] of koWinsByPlayer.entries()) {
+            const row = idToRow.get(id);
+            if (row) row.koWins = w;
         }
 
-        const lowerByPlayer = new Map<string, { groupName: string; rank: number | null; wins: number }>();
+        // victorii + grupă/rank (prefer UPPER dacă există)
+        const upperByPlayer = new Map<
+            string,
+            { groupName: string; rank: number | null; wins: number; pf: number; pa: number }
+        >();
+        for (const g of groupsUpper) {
+            for (const m of g.members) {
+                upperByPlayer.set(m.player_id, {
+                    groupName: g.name,
+                    rank: m.rank_in_group ?? null,
+                    wins: m.wins ?? 0,
+                    pf: m.points_for ?? 0,
+                    pa: m.points_against ?? 0,
+                });
+            }
+        }
+
+        const lowerByPlayer = new Map<
+            string,
+            { groupName: string; rank: number | null; wins: number; pf: number; pa: number }
+        >();
         for (const g of groupsLower) {
-            for (const m of g.members) lowerByPlayer.set(m.player_id, { groupName: g.name, rank: m.rank_in_group ?? null, wins: m.wins ?? 0 });
+            for (const m of g.members) {
+                lowerByPlayer.set(m.player_id, {
+                    groupName: g.name,
+                    rank: m.rank_in_group ?? null,
+                    wins: m.wins ?? 0,
+                    pf: m.points_for ?? 0,
+                    pa: m.points_against ?? 0,
+                });
+            }
         }
 
         for (const row of base) {
@@ -1602,6 +1644,11 @@ export default function AdminTournamentPage() {
 
             row.winsUpper = up?.wins ?? 0;
             row.winsLower = lo?.wins ?? 0;
+
+            row.pfUpper = up?.pf ?? 0;
+            row.paUpper = up?.pa ?? 0;
+            row.pfLower = lo?.pf ?? 0;
+            row.paLower = lo?.pa ?? 0;
 
             if (up) {
                 row.groupStage = "UPPER_GROUP";
@@ -1614,20 +1661,27 @@ export default function AdminTournamentPage() {
             }
         }
 
-        // sortarea finală (same as înainte)
+        // ✅ sortarea finală (Varianta 1: Podium + total victorii + setaveraj grupe + MP la înscriere + alfabetic)
         const sorted = [...base].sort((a, b) => {
+            // 1) Podium (1,2,3,3) mereu sus
             if (a.finalPlace && b.finalPlace) return a.finalPlace - b.finalPlace;
             if (a.finalPlace && !b.finalPlace) return -1;
             if (!a.finalPlace && b.finalPlace) return 1;
 
-            if (b.koRound !== a.koRound) return b.koRound - a.koRound;
+            // 2) Total victorii în turneu (grupe + KO), descrescător
+            const aTotalWins = (a.winsLower ?? 0) + (a.winsUpper ?? 0) + (a.koWins ?? 0);
+            const bTotalWins = (b.winsLower ?? 0) + (b.winsUpper ?? 0) + (b.koWins ?? 0);
+            if (bTotalWins !== aTotalWins) return bTotalWins - aTotalWins;
 
-            const ar = a.groupRank ?? 999;
-            const br = b.groupRank ?? 999;
-            if (ar !== br) return ar - br;
+            // 3) Setaveraj în grupe (inf + sup), descrescător
+            const aSetDiff = (a.pfLower - a.paLower) + (a.pfUpper - a.paUpper);
+            const bSetDiff = (b.pfLower - b.paLower) + (b.pfUpper - b.paUpper);
+            if (bSetDiff !== aSetDiff) return bSetDiff - aSetDiff;
 
+            // 4) MP la înscriere (descrescător)
             if (b.mpReg !== a.mpReg) return b.mpReg - a.mpReg;
 
+            // 5) Alfabetic
             return a.name.localeCompare(b.name);
         });
 
@@ -1706,7 +1760,7 @@ export default function AdminTournamentPage() {
             for (let idx = 0; idx < overallRanking.length; idx++) {
                 const p = overallRanking[idx] as any;
 
-                const totalWins = (p.winsLower ?? 0) + (p.winsUpper ?? 0);
+                const totalWins = (p.winsLower ?? 0) + (p.winsUpper ?? 0) + (p.koWins ?? 0);
                 const isZv = totalWins === 0;
 
                 // Dacă e ZV (zero victorii), NU salvăm mp_turneu (nu intră în media ultimelor 4)
@@ -2555,8 +2609,11 @@ export default function AdminTournamentPage() {
                                             <th style={{ padding: "8px 6px", width: 200 }}>Jucător</th>
                                             <th style={{ padding: "8px 6px", width: 60 }}>KO</th>
                                             <th style={{ padding: "8px 6px", width: 60 }}>Categoria</th>
-                                            <th style={{ padding: "8px 6px", width: 120, textAlign: "center" }}>Victorii gr. inf.</th>
-                                            <th style={{ padding: "8px 6px", width: 120, textAlign: "center" }}>Victorii gr. sup.</th>
+                                            <th style={{ padding: "8px 6px", width: 110, textAlign: "center" }}>Victorii gr. inf.</th>
+                                            <th style={{ padding: "8px 6px", width: 110, textAlign: "center" }}>Victorii gr. sup.</th>
+                                            <th style={{ padding: "8px 6px", width: 80, textAlign: "center" }}>KO W</th>
+                                            <th style={{ padding: "8px 6px", width: 90, textAlign: "center" }}>Total W</th>
+                                            <th style={{ padding: "8px 6px", width: 120, textAlign: "center" }}>Setaveraj grupe</th>
                                             <th style={{ padding: "8px 6px", width: 140, textAlign: "right" }}>MP Turneu (bonus inclus)</th>
                                         </tr>
                                     </thead>
@@ -2576,7 +2633,8 @@ export default function AdminTournamentPage() {
                                                                 ? `Runda ${p.koRound}`
                                                                 : "—";
 
-                                            const totalWins = (p.winsLower ?? 0) + (p.winsUpper ?? 0);
+                                            const totalWins = (p.winsLower ?? 0) + (p.winsUpper ?? 0) + (p.koWins ?? 0);
+                                            const setDiff = (p.pfLower - p.paLower) + (p.pfUpper - p.paUpper);
 
                                             return (
                                                 <tr key={p.id} style={{ borderBottom: "1px solid #f3f3f3" }}>
@@ -2596,7 +2654,9 @@ export default function AdminTournamentPage() {
 
                                                     <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.winsLower ?? 0}</td>
                                                     <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.winsUpper ?? 0}</td>
-
+                                                    <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.koWins ?? 0}</td>
+                                                    <td style={{ padding: "8px 6px", textAlign: "center", fontWeight: 700 }}>{totalWins}</td>
+                                                    <td style={{ padding: "8px 6px", textAlign: "center" }}>{setDiff}</td>
                                                     <td style={{ padding: "8px 6px", textAlign: "right" }}>
                                                         {totalWins === 0 ? (
                                                             <span style={{ fontSize: 12, fontWeight: 900, opacity: 100 }}>ZV</span>
@@ -2618,7 +2678,7 @@ export default function AdminTournamentPage() {
                                 </table>
 
                                 <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
-                                    Notă: ZV = zero victorii în turneu. Sortare: Podium → runda KO → rank/grupe → MP (la înscriere) → alfabetic.
+                                    Notă: ZV = zero victorii în turneu. Sortare: Podium → total victorii (grupe + KO) → setaveraj grupe → MP (la înscriere) → alfabetic.
                                 </div>
                             </div>
                         )}
