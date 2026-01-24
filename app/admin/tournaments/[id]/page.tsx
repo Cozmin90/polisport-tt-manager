@@ -1718,7 +1718,12 @@ export default function AdminTournamentPage() {
             for (let j = 0; j < block.length; j++) {
                 const pos = i + j + 1;
 
-                const bonus = pos === 1 ? 6 : pos === 2 ? 4 : pos === 3 ? 2 : (hasKO && pos === 4 ? 2 : 0);
+                const podiumBonus = pos === 1 ? 6 : pos === 2 ? 4 : pos === 3 ? 2 : (hasKO && pos === 4 ? 2 : 0);
+
+                // Bonusuri suplimentare (motivare): locurile 5–8 (+2), locurile 9–12 (+1)
+                const bandBonus = pos >= 5 && pos <= 8 ? 2 : pos >= 9 && pos <= 12 ? 1 : 0;
+
+                const bonus = podiumBonus + bandBonus;
 
                 const mpTournament = mpSector + bonus;
 
