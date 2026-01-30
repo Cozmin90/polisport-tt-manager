@@ -1865,7 +1865,7 @@ export default function AdminTournamentPage() {
             <div className="ps-card mb-6 px-5 py-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
-                        <Link href="/admin" className="ps-btn ps-btn-outline text-sm">Înapoi</Link>
+                        <Link href="/" className="ps-btn ps-btn-outline text-sm">Înapoi</Link>
                         <div>
                             <div className="text-xl font-extrabold leading-tight">Administrare turneu</div>
                             <div className="text-sm" style={{ color: "var(--ps-muted)" }}>
@@ -1958,15 +1958,14 @@ export default function AdminTournamentPage() {
             </div>
 
             <div className="no-print">
-                <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                    <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, }}>
                     <div>
-                        <h1 style={{ fontSize: 22, fontWeight: 800 }}>Admin • {title || "Turneu"}</h1>
-                        <div style={{ opacity: 0.8, fontSize: 13 }}>
+                        <h1 style={{ fontSize: 22, fontWeight: 800 }}>{title || "Turneu"}</h1>
+                        <div style={{ opacity: 0.8, fontSize: 13,}}>
                             Format: {format === "LOWER_UPPER_KO" ? "Inferioare → Superioare → KO" : "Grupe → KO direct"}{forceGroupsKo ? " (fallback: Grupe → KO direct pentru 3–9 jucători)" : ""} • Grupe: {groupsLower.length} • Superioare:{" "}
                             {groupsUpper.length} • KO: {matchesKO.length} meciuri
                         </div>
-                    </div>
-                    <Link href="/">← Înapoi</Link>
+                    </div>   
                 </header>
 
                 {/* CONTROALE (secondary) */}
@@ -1975,7 +1974,7 @@ export default function AdminTournamentPage() {
                         <div style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
                             <span style={{ fontSize: 12, opacity: 0.75 }}>Status turneu:</span>
 
-                            <select value={tournamentStatus} onChange={(e) => setTournamentStatusSafe(e.target.value as any)} style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid #ddd", background: "white", color: "#111" }}>
+                            <select value={tournamentStatus} onChange={(e) => setTournamentStatusSafe(e.target.value as any)} style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid #ddd", color: "#111" }}>
                                 <option value="UPCOMING">Urmează</option>
                                 <option value="LIVE">În desfășurare</option>
                                 <option value="FINISHED">Finalizat</option>
@@ -2035,7 +2034,7 @@ export default function AdminTournamentPage() {
 
 
                 {/* ✅ PARTICIPANȚI + LOCURI LIBERE */}
-                <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
+                    <section style={{ marginTop: 14, border: "2px solid #eee", borderRadius: 12, padding: 12, background: "white", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
                         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Participanți</h2>
 
@@ -2059,7 +2058,7 @@ export default function AdminTournamentPage() {
                         <div style={{ marginTop: 10, opacity: 0.8 }}>Încă nu există participanți înscriși.</div>
                     ) : (
                         <div style={{ overflowX: "auto", marginTop: 10 }}>
-                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, }}>
                                 <thead>
                                     <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
                                         <th style={{ padding: "8px 6px", width: 44 }}>#</th>
@@ -2129,7 +2128,7 @@ export default function AdminTournamentPage() {
                 </section>
 
                 {/* ✅ CTA: 1-click */}
-                <section style={{ marginTop: 12 }}>
+                <section style={{ marginTop: 12,}}>
                     <button
                         onClick={generateLowerGroupsAndMatches}
                         disabled={participants.length < 3 || groupsLower.length > 0 || matchesLower.length > 0}
@@ -2137,7 +2136,8 @@ export default function AdminTournamentPage() {
                             width: "100%",
                             padding: "14px 16px",
                             borderRadius: 12,
-                            border: "1px solid #ddd",
+                            border: "0px solid #ddd",
+                            boxShadow: "0 3px 6px rgba(0,0,0,0.4)",
                             fontWeight: 1000,
                             fontSize: 14,
                             cursor: participants.length < 3 || groupsLower.length > 0 || matchesLower.length > 0 ? "not-allowed" : "pointer",
@@ -2157,7 +2157,7 @@ export default function AdminTournamentPage() {
 
 
                 {/* GRUPE (LOWER_GROUP) */}
-                <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
+                    <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12, background: "white",boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
                         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>{isGroupsKo ? "Grupe" : "Grupe inferioare"}</h2>
 
@@ -2318,7 +2318,7 @@ export default function AdminTournamentPage() {
 
                 {/* SUPERIOARE (doar pentru LOWER_UPPER_KO) */}
                 {!isGroupsKo && (
-                    <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
+                        <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12,background: "white", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
                         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
                             <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Grupe superioare</h2>
 
@@ -2491,7 +2491,7 @@ export default function AdminTournamentPage() {
                 )}
 
                 {/* KO */}
-                <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
+                    <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12, background:"white", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
                         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Tablou eliminatoriu (KO)</h2>
 
@@ -2600,7 +2600,7 @@ export default function AdminTournamentPage() {
 
                 {/* CLASAMENT TOTAL */}
                 {showFinalRanking && champion ? (
-                    <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
+                        <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12, background: "white", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
                         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Clasament total (toți înscrișii)</h2>
                         <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                             <button
