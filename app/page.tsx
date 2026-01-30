@@ -1,10 +1,10 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
-import Image from "next/image";
 import WhatsAppButton from "../components/WhatsAppButton";
 
 type TournamentCategory = "HOBBY" | "ADVANCED" | "ELITE" | "ALL";
@@ -16,22 +16,20 @@ type Tournament = {
     start_at: string;
     format: "LOWER_UPPER_KO" | "GROUPS_KO" | string;
     status: string;
+
     registration_open?: boolean;
     max_players?: number | null;
 
-    // noi
+    // UI / reguli
     is_rated?: boolean;
-    // categoria selectată la creare (admin/tournaments/new)
-    // (dacă nu folosești allowed_categories în DB)
     category?: TournamentCategory | null;
     allowed_categories?: TournamentCategory[] | null;
 
-    // donație minimă recomandată (text)
     donation_recommended?: string | null;
     donation_min?: string | null;
     donation?: string | null;
 
-    // opțional (le calculăm dacă putem)
+    // calculate (optional)
     registered_count?: number;
     spots_left?: number | null;
     is_full?: boolean;
@@ -47,19 +45,6 @@ function catLabel(c: TournamentCategory) {
     if (c === "HOBBY") return "Hobby";
     if (c === "ADVANCED") return "Avansați";
     return "Elite";
-}
-
-function catsDisplay(cats: TournamentCategory[]) {
-    // Dacă e Open (ALL), afișăm explicit toate categoriile, nu doar textul "ALL".
-    if (cats.includes("ALL")) return "ALL (Hobby, Avansați, Elite)";
-    return cats.map(catLabel).join(", ");
-}
-
-// Pentru UI (carduri / afișare publică) vrem să arătăm strict categoria turneului,
-// nu lista allowed_categories (care e pentru eligibilitate).
-function categoryDisplayFromCategory(cat: TournamentCategory | null | undefined) {
-    if (!cat || cat === "ALL") return "ALL (Hobby, Avansați, Elite)";
-    return catLabel(cat);
 }
 
 function playerCategory(mpMax: number): Exclude<TournamentCategory, "ALL"> {
@@ -85,9 +70,17 @@ function toLocalRO24(iso: string) {
 
 function cardCategoryText(t: Tournament) {
     const cat = (t.category ?? "ALL") as TournamentCategory;
-    // Pe card arătăm DOAR categoria turneului. (Regula "o categorie mai sus" rămâne în regulament.)
     if (cat === "ALL") return "ALL (Hobby, Avansați, Elite)";
     return catLabel(cat);
+}
+
+function prettyStatus(s: string) {
+    const v = (s ?? "").toUpperCase();
+    if (v === "UPCOMING") return "Urmează";
+    if (v === "LIVE") return "În desfășurare";
+    if (v === "FINISHED") return "Finalizat";
+    if (v === "CANCELLED") return "Anulat";
+    return s;
 }
 
 export default function HomePage() {
@@ -96,19 +89,18 @@ export default function HomePage() {
     const [userEmail, setUserEmail] = useState<string | null>(null);
     const [userId, setUserId] = useState<string | null>(null);
     const [userName, setUserName] = useState<string | null>(null);
-
-    // Admin gating (UI only). Access should still be enforced in /admin routes and via RLS.
-    // We read this from players.is_admin.
     const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
     const [userMp, setUserMp] = useState<number>(2);
     const [userMpMax, setUserMpMax] = useState<number>(2);
 
-    // ✅ Fix #2 + #3: Amatur
+    // Amatur
     const [userAmaturMp, setUserAmaturMp] = useState<number | null>(null);
     const [hasAmatur, setHasAmatur] = useState<boolean>(false);
 
     const [tournaments, setTournaments] = useState<Tournament[]>([]);
+    const [tournamentsTotalCount, setTournamentsTotalCount] = useState<number>(0);
+    const [playersCount, setPlayersCount] = useState<number>(0);
     const [myRegistrations, setMyRegistrations] = useState<Record<string, MyReg>>({});
 
     const [loading, setLoading] = useState(true);
@@ -119,30 +111,16 @@ export default function HomePage() {
         loadingRef.current = true;
 
         setLoading(true);
-
         try {
-            // 1) user curent
-            const { data: authData, error: authErr } = await supabase.auth.getUser();
-            if (authErr) {
-                console.error("auth.getUser error:", {
-                    message: (authErr as any)?.message,
-                    details: (authErr as any)?.details,
-                    hint: (authErr as any)?.hint,
-                    code: (authErr as any)?.code,
-                    status: (authErr as any)?.status,
-                });
-            }
-
+            // 1) auth
+            const { data: authData } = await supabase.auth.getUser();
             const uid = authData?.user?.id ?? null;
             const email = authData?.user?.email ?? null;
 
             setUserId(uid);
             setUserEmail(email);
 
-            // We'll compute isAdmin from players.is_admin once we fetch the player row.
-            setIsAdmin(false);
-
-            // fallback nume din metadata (instant)
+            // fallback nume din metadata
             const meta = authData?.user?.user_metadata ?? {};
             const metaDisplay =
                 (meta.display_name as string | undefined)?.trim() ||
@@ -150,434 +128,225 @@ export default function HomePage() {
                 null;
             setUserName(metaDisplay);
 
-            // 2) players: nume + mp/mp_max + amatur_mp
+            setIsAdmin(false);
+
+            // 2) players row (mp, mp_max, amatur_mp, is_admin)
             if (uid) {
-                const { data: p, error: pErr } = await supabase
+                const { data: p } = await supabase
                     .from("players")
-                    // ✅ includem amatur_mp + is_admin
                     .select("display_name, full_name, first_name, last_name, mp, mp_max, amatur_mp, is_admin")
                     .eq("id", uid)
                     .maybeSingle();
 
-                if (pErr) {
-                    console.error("players error:", {
-                        message: (pErr as any)?.message,
-                        details: (pErr as any)?.details,
-                        hint: (pErr as any)?.hint,
-                        code: (pErr as any)?.code,
-                        status: (pErr as any)?.status,
-                    });
-                } else if (p) {
-                    // ✅ Admin gating from DB
+                if (p) {
                     setIsAdmin(!!(p as any).is_admin);
 
                     const fromFirstLast = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
+                    const name =
+                        (p.display_name as string | null)?.trim() ||
+                        (p.full_name as string | null)?.trim() ||
+                        (fromFirstLast.length ? fromFirstLast : null) ||
+                        metaDisplay;
 
-                    const candidate =
-                        (p.display_name ?? "").trim() ||
-                        fromFirstLast ||
-                        ((p.full_name ?? "").includes("@") ? "" : (p.full_name ?? "").trim()) ||
-                        metaDisplay ||
-                        null;
+                    setUserName(name);
 
-                    setUserName(candidate);
+                    const mp = Number((p as any).mp ?? 2);
+                    const mpMax = Number((p as any).mp_max ?? mp ?? 2);
+                    setUserMp(Number.isFinite(mp) ? mp : 2);
+                    setUserMpMax(Number.isFinite(mpMax) ? mpMax : 2);
 
-                    const mp = typeof (p as any).mp === "number" ? (p as any).mp : 2;
-                    const mpMax = typeof (p as any).mp_max === "number" ? (p as any).mp_max : mp;
-
-                    setUserMp(mp);
-                    setUserMpMax(mpMax);
-
-                    const aMp = typeof (p as any).amatur_mp === "number" ? ((p as any).amatur_mp as number) : null;
-                    setUserAmaturMp(aMp);
-                    setHasAmatur(typeof aMp === "number" && aMp > 0);
-                } else {
-                    setUserMp(2);
-                    setUserMpMax(2);
-                    setUserAmaturMp(null);
-                    setHasAmatur(false);
-                    setIsAdmin(false);
+                    const am = (p as any).amatur_mp;
+                    const amNum = am == null ? null : Number(am);
+                    setUserAmaturMp(Number.isFinite(amNum as any) ? (amNum as number) : null);
+                    setHasAmatur(Number.isFinite(amNum as any));
                 }
             } else {
-                setUserName(null);
                 setUserMp(2);
                 setUserMpMax(2);
                 setUserAmaturMp(null);
                 setHasAmatur(false);
-                setIsAdmin(false);
             }
 
-            // 3) turnee: direct din tournaments (stabil)
-            const { data: tDataRaw, error: tErr } = await supabase
+            // 3) tournaments (public list on Home)
+            // IMPORTANT: use select("*") to avoid breaking if some optional columns are missing in local schema
+            const { data: ts, error: tErr } = await supabase
                 .from("tournaments")
                 .select("*")
-                .in("status", ["UPCOMING", "LIVE"])
+                .neq("status", "FINISHED")
                 .order("start_at", { ascending: true });
 
             if (tErr) {
-                console.error("Home: tournaments error:", {
-                    message: (tErr as any)?.message,
-                    details: (tErr as any)?.details,
-                    hint: (tErr as any)?.hint,
-                    code: (tErr as any)?.code,
-                    status: (tErr as any)?.status,
-                });
-                setTournaments([]);
-            } else {
-                const tData = (tDataRaw ?? []) as any[];
-
-                // Prioritate pentru eligibilitate:
-                // 1) allowed_categories (dacă există și are valori)
-                // 2) category (câmpul salvat din UI la creare)
-                // 3) fallback: ALL
-                const normalizeAllowed = (t: any): TournamentCategory[] => {
-                    if (Array.isArray(t?.allowed_categories) && t.allowed_categories.length > 0) {
-                        return t.allowed_categories as TournamentCategory[];
-                    }
-
-                    const cat = (t?.category ?? null) as TournamentCategory | null;
-                    if (cat) return [cat];
-
-                    return ["ALL"]; // default: oricine
-                };
-
-                const normalized: Tournament[] = tData.map((t) => ({
-                    ...t,
-                    is_rated: typeof t.is_rated === "boolean" ? t.is_rated : true,
-                    allowed_categories: normalizeAllowed(t),
-                }));
-
-                setTournaments(normalized);
-
-                // 3b) opțional: calculează registered_count/is_full/spots_left (dacă ai permisiuni)
-                try {
-                    const ids = normalized.map((x) => x.id);
-                    if (ids.length > 0) {
-                        const { data: regAll, error: regAllErr } = await supabase
-                            .from("registrations")
-                            .select("tournament_id,status")
-                            .in("tournament_id", ids);
-
-                        if (!regAllErr && regAll) {
-                            const cnt = new Map<string, number>();
-                            for (const r of regAll as any[]) {
-                                if (r.status === "REGISTERED") {
-                                    cnt.set(r.tournament_id, (cnt.get(r.tournament_id) ?? 0) + 1);
-                                }
-                            }
-
-                            setTournaments((prev) =>
-                                prev.map((t) => {
-                                    const c = cnt.get(t.id) ?? 0;
-                                    const isFull = typeof t.max_players === "number" ? c >= t.max_players : false;
-                                    const spotsLeft = typeof t.max_players === "number" ? t.max_players - c : null;
-                                    return {
-                                        ...t,
-                                        registered_count: c,
-                                        is_full: isFull,
-                                        spots_left: spotsLeft,
-                                    };
-                                })
-                            );
-                        }
-                    }
-                } catch (e) {
-                    console.warn("Optional registrations aggregate skipped:", e);
-                }
+                console.error("Home tournaments query error:", tErr);
             }
 
-            // 4) registrations ale mele (ca să știu dacă sunt înscris)
-            if (uid) {
-                const { data: rData, error: rErr } = await supabase
+            const list = (ts ?? []) as Tournament[];
+
+            // 3b) total tournaments organized (include FINISHED too)
+            try {
+                const { count: tCount } = await supabase
+                    .from("tournaments")
+                    .select("id", { count: "exact", head: true } as any);
+                setTournamentsTotalCount(typeof tCount === "number" ? tCount : 0);
+            } catch {
+                setTournamentsTotalCount(0);
+            }
+
+
+            // 4) registered_count + spots_left (best-effort)
+            const ids = list.map((t) => t.id);
+            let counts: Record<string, number> = {};
+            if (ids.length) {
+                const { data: regs } = await supabase
                     .from("registrations")
                     .select("tournament_id,status")
-                    .eq("player_id", uid);
+                    .in("tournament_id", ids);
 
-                if (rErr) {
-                    console.error("my registrations error:", {
-                        message: (rErr as any)?.message,
-                        details: (rErr as any)?.details,
-                        hint: (rErr as any)?.hint,
-                        code: (rErr as any)?.code,
-                        status: (rErr as any)?.status,
-                    });
-                }
+                (regs ?? []).forEach((r: any) => {
+                    if (r?.status !== "REGISTERED") return;
+                    counts[r.tournament_id] = (counts[r.tournament_id] ?? 0) + 1;
+                });
+            }
 
-                const map: Record<string, any> = {};
-                (rData ?? []).forEach((r: any) => (map[r.tournament_id] = r));
+            const enriched = list.map((t) => {
+                const registered = counts[t.id] ?? 0;
+                const max = typeof t.max_players === "number" ? t.max_players : null;
+                const spotsLeft = typeof max === "number" ? Math.max(0, max - registered) : null;
+                const isFull = typeof max === "number" ? registered >= max : false;
+                return { ...t, registered_count: registered, spots_left: spotsLeft, is_full: isFull };
+            });
+
+            setTournaments(enriched);
+
+            // 4b) total players (best-effort)
+            try {
+                const { count } = await supabase.from("players").select("id", { count: "exact", head: true } as any);
+                setPlayersCount(typeof count === "number" ? count : 0);
+            } catch {
+                setPlayersCount(0);
+            }
+
+
+            // 5) my registrations
+            if (uid && ids.length) {
+                const { data: myRegs } = await supabase
+                    .from("registrations")
+                    .select("tournament_id,status")
+                    .eq("player_id", uid)
+                    .in("tournament_id", ids);
+
+                const map: Record<string, MyReg> = {};
+                (myRegs ?? []).forEach((r: any) => {
+                    if (!r?.tournament_id) return;
+                    map[r.tournament_id] = { tournament_id: r.tournament_id, status: r.status };
+                });
                 setMyRegistrations(map);
             } else {
                 setMyRegistrations({});
             }
-        } catch (e) {
-            console.error("load() crashed:", e);
         } finally {
             setLoading(false);
             loadingRef.current = false;
         }
     }
 
-    async function logout() {
-        await supabase.auth.signOut();
-
-        // curățare imediată UI
-        setUserId(null);
-        setUserEmail(null);
-        setUserName(null);
-        setUserMp(2);
-        setUserMpMax(2);
-        setUserAmaturMp(null);
-        setHasAmatur(false);
-        setMyRegistrations({});
-
-        await load();
-        router.refresh();
-    }
-
     useEffect(() => {
+        // Initial load
         load();
 
-        const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-            if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
-                load();
+        // Keep UI in sync with auth changes (login/logout) without requiring a manual refresh
+        const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+            const uid = session?.user?.id ?? null;
+            const email = session?.user?.email ?? null;
+
+            setUserId(uid);
+            setUserEmail(email);
+
+            if (!uid) {
+                // Immediately reflect logged-out state in the UI
+                setUserName(null);
+                setIsAdmin(false);
+                setMyRegistrations({});
+                setHasAmatur(false);
+                setUserAmaturMp(null);
             }
+
+            // Re-fetch data that depends on auth
+            load();
         });
 
         return () => {
-            sub.subscription.unsubscribe();
+            sub?.subscription?.unsubscribe();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+    async function logout() {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+            console.error("Logout error:", error.message);
+            alert("Nu am putut face logout. Te rog încearcă din nou.");
+            return;
+        }
 
+        // Update UI instantly (no manual refresh needed)
+        setUserEmail(null);
+        setUserId(null);
+        setUserName(null);
+        setIsAdmin(false);
+        setMyRegistrations({});
+        setHasAmatur(false);
+        setUserAmaturMp(null);
+
+        router.replace("/");
+        router.refresh();
+    }
     async function registerToTournament(t: Tournament) {
-        const { data: auth } = await supabase.auth.getUser();
-        if (!auth.user) {
-            router.push("/login?mode=login");
-            return;
-        }
+        if (!userId) return;
 
-        // eligibilitate pe MP_MAX + categoria turneului (NU pe allowed_categories)
-        const myCat = playerCategory(userMpMax);
-        const tCat = (t.category ?? "ALL") as TournamentCategory;
+        // eligibilitate simplă: permit "o categorie mai sus" (în regulament) – aici doar blocăm dacă e clar peste.
+        const cat = (t.category ?? "ALL") as TournamentCategory;
+        if (cat !== "ALL") {
+            const myCat = playerCategory(userMpMax);
+            const allowed =
+                myCat === cat ||
+                (myCat === "HOBBY" && cat === "ADVANCED") ||
+                (myCat === "ADVANCED" && cat === "ELITE");
 
-        // dacă turneul e ALL -> acceptă pe oricine
-        if (tCat !== "ALL") {
-            const nextCat: Exclude<TournamentCategory, "ALL"> =
-                myCat === "HOBBY" ? "ADVANCED" : myCat === "ADVANCED" ? "ELITE" : "ELITE";
-
-            const allowedForMe: TournamentCategory[] = [myCat, nextCat];
-
-            if (!allowedForMe.includes(tCat)) {
-                alert(
-                    `Nu ești eligibil.\nCategoria ta: ${catLabel(myCat)} (MP Max: ${userMpMax})\nCategoria turneului: ${catLabel(tCat as any)}`
-                );
+            if (!allowed) {
+                alert("Nu ești eligibil pentru această categorie (regula este: categoria ta sau una mai sus).");
                 return;
             }
         }
 
-        // snapshot MP pentru istoric (îngheață MP-ul cu care te-ai înscris)
-        // IMPORTANT: luăm MP-ul curent direct din DB (nu din state), ca să fie corect chiar dacă UI e în urmă.
-        const { data: pNow, error: pNowErr } = await supabase
-            .from("players")
-            .select("mp")
-            .eq("id", auth.user.id)
-            .maybeSingle();
-
-        if (pNowErr) {
-            alert("Eroare citire MP (players): " + (pNowErr as any)?.message);
-            return;
-        }
-
-        const mpBefore = typeof (pNow as any)?.mp === "number" ? ((pNow as any).mp as number) : 0;
-
-        // Dacă există deja o înregistrare (ex: WITHDRAWN), o reactivăm în loc să inserăm una nouă
-        const { data: existingReg, error: existingErr } = await supabase
-            .from("registrations")
-            .select("status, penalty_applied")
-            .eq("tournament_id", t.id)
-            .eq("player_id", auth.user.id)
-            .maybeSingle();
-
-        if (existingErr) {
-            alert("Eroare verificare înscriere: " + (existingErr as any)?.message);
-            return;
-        }
-
-        // deja înscris
-        if (existingReg?.status === "REGISTERED") {
-            alert("Ești deja înscris la acest turneu.");
-            return;
-        }
-
-        if (existingReg?.status === "WITHDRAWN") {
-            // Reînscriere: anulăm retragerea și (dacă a existat) penalizarea de retragere
-            const prevPenalty = typeof (existingReg as any)?.penalty_applied === "number" ? ((existingReg as any).penalty_applied as number) : 0;
-
-            const { error: upErr } = await supabase
-                .from("registrations")
-                .update({
-                    status: "REGISTERED",
-                    withdrawn_at: null,
-                    withdraw_penalty: 0, // reset și câmpul folosit în Cont
-                    penalty_applied: 0,
-                    penalty_reason: null,
-                    mp_before: mpBefore, // re-snapshot (util dacă s-a schimbat între timp)
-                } as any)
-                .eq("tournament_id", t.id)
-                .eq("player_id", auth.user.id);
-
-            if (upErr) {
-                alert("Eroare reînscriere: " + (upErr as any)?.message);
-                return;
-            }
-
-            if (prevPenalty > 0) {
-                // Notăm anularea în jurnal și scădem punctele de penalizare la jucător
-                await supabase.from("penalty_events").insert({
-                    player_id: auth.user.id,
-                    tournament_id: t.id,
-                    points_delta: -prevPenalty,
-                    reason: "Anulare penalizare (reînscriere după retragere)",
-                });
-
-                const { data: p, error: pErr } = await supabase
-                    .from("players")
-                    .select("penalty_points, banned_until")
-                    .eq("id", auth.user.id)
-                    .single();
-
-                if (!pErr) {
-                    const current = (p?.penalty_points ?? 0) as number;
-                    const next = Math.max(0, current - prevPenalty);
-
-                    await supabase
-                        .from("players")
-                        .update({
-                            penalty_points: next,
-                            banned_until: next === 0 ? null : (p as any)?.banned_until ?? null,
-                        } as any)
-                        .eq("id", auth.user.id);
-                }
-            }
-
-            alert("Te-ai reînscris cu succes!");
-            await load();
-            setMyRegistrations((prev) => ({
-                ...prev,
-                [t.id]: { tournament_id: t.id, status: "REGISTERED" },
-            }));
-            return;
-        }
-
-        // Caz normal: nu există înregistrare -> insert
-        const { error } = await supabase.from("registrations").insert({
+        const { error } = await supabase.from("registrations").upsert({
             tournament_id: t.id,
-            player_id: auth.user.id,
+            player_id: userId,
             status: "REGISTERED",
-            mp_before: mpBefore, // ✅ snapshot pentru istoric
+            registered_at: new Date().toISOString(),
         } as any);
 
         if (error) {
-            alert("Eroare înscriere: " + (error as any)?.message);
-        } else {
-            alert("Înscris cu succes!");
-            await load();
-            setMyRegistrations((prev) => ({
-                ...prev,
-                [t.id]: { tournament_id: t.id, status: "REGISTERED" },
-            }));
-        }
-    }
-
-    async function withdrawFromTournament(t: Tournament) {
-        const { data: auth } = await supabase.auth.getUser();
-        if (!auth.user) return;
-
-        const start = new Date(t.start_at).getTime();
-        const now = Date.now();
-        const hoursLeft = (start - now) / (1000 * 60 * 60);
-
-        let penalty = 0;
-        let reason = "Retragere >=48h (0 puncte)";
-
-        if (hoursLeft < 48 && hoursLeft >= 24) {
-            penalty = 1;
-            reason = "Retragere între 24–48h (+1 punct)";
-        } else if (hoursLeft < 24) {
-            penalty = 2;
-            reason = "Retragere sub 24h (+2 puncte)";
-        }
-
-        const { error: regErr } = await supabase
-            .from("registrations")
-            .update({
-                status: "WITHDRAWN",
-                withdrawn_at: new Date().toISOString(),
-                withdraw_penalty: penalty, // important: folosit pe pagina Cont pentru total penalizări
-                penalty_applied: penalty,
-                penalty_reason: reason,
-            } as any)
-            .eq("tournament_id", t.id)
-            .eq("player_id", auth.user.id);
-
-        if (regErr) {
-            alert("Eroare retragere: " + (regErr as any)?.message);
+            alert((error as any)?.message ?? "Eroare înscriere.");
             return;
         }
 
-        // penalizări (dacă ai tabelele)
-        if (penalty > 0) {
-            await supabase.from("penalty_events").insert({
-                player_id: auth.user.id,
-                tournament_id: t.id,
-                points_delta: penalty,
-                reason,
-            });
-
-            const { data: p, error: pErr } = await supabase
-                .from("players")
-                .select("penalty_points")
-                .eq("id", auth.user.id)
-                .single();
-
-            if (!pErr) {
-                const current = (p?.penalty_points ?? 0) as number;
-                const next = current + penalty;
-
-                const bannedUntilIso = next >= 4 ? new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString() : null;
-
-                await supabase
-                    .from("players")
-                    .update({
-                        penalty_points: next >= 4 ? 0 : next,
-                        banned_until: bannedUntilIso,
-                    })
-                    .eq("id", auth.user.id);
-            }
-        }
-
-        alert("Te-ai retras. " + reason);
         await load();
-
-        setMyRegistrations((prev) => ({
-            ...prev,
-            [t.id]: { tournament_id: t.id, status: "WITHDRAWN" },
-        }));
     }
 
-    function prettyStatus(s: string | null | undefined) {
-        switch ((s ?? "").toUpperCase()) {
-            case "UPCOMING":
-                return "Urmează";
-            case "LIVE":
-                return "În desfășurare";
-            case "FINISHED":
-                return "Finalizat";
-            case "CANCELLED":
-                return "Anulat";
-            default:
-                return s ?? "—";
+    async function withdrawFromTournament(t: Tournament) {
+        if (!userId) return;
+
+        const { error } = await supabase
+            .from("registrations")
+            .update({ status: "WITHDRAWN", withdrawn_at: new Date().toISOString() } as any)
+            .eq("tournament_id", t.id)
+            .eq("player_id", userId);
+
+        if (error) {
+            alert((error as any)?.message ?? "Eroare retragere.");
+            return;
         }
+
+        await load();
     }
 
     function buildWhatsappAnnouncement(t: Tournament) {
@@ -587,44 +356,37 @@ export default function HomePage() {
         const format = t?.format ?? "—";
         const type = t?.is_rated ? "Punctat" : "Agrement";
 
-        // Pentru mesajul public, păstrăm aceeași logică ca pe card: afișăm DOAR categoria turneului.
         const cats = cardCategoryText(t);
+        const donation = ((t as any).donation_info ?? t.donation_recommended ?? t.donation_min ?? t.donation ?? "")
+            .toString()
+            .trim() || "Gratuit";
 
-        const donation = ((t as any).donation_info ?? "").toString().trim() || "Gratuit";
-
-        const regOpen =
-            typeof t?.registration_open === "boolean" ? (t.registration_open ? "DESCHISE" : "ÎNCHISE") : "—";
+        const regOpen = typeof t?.registration_open === "boolean" ? (t.registration_open ? "DESCHISE" : "ÎNCHISE") : "—";
 
         const registered = typeof t?.registered_count === "number" ? t.registered_count : 0;
         const max = typeof t?.max_players === "number" ? t.max_players : null;
-        const spotsLeft =
-            typeof t?.spots_left === "number"
-                ? t.spots_left
-                : typeof max === "number"
-                    ? Math.max(0, max - registered)
-                    : null;
+        const spotsLeft = typeof t?.spots_left === "number" ? t.spots_left : typeof max === "number" ? Math.max(0, max - registered) : null;
 
         const slotsLine =
             typeof max === "number"
                 ? `${registered}/${max} (rămase ${spotsLeft ?? Math.max(0, max - registered)})`
                 : `${registered} înscriși`;
 
-        const publicUrl =
-            typeof window !== "undefined" ? `${window.location.origin}/tournaments/${t.id}` : `/tournaments/${t.id}`;
+        const publicUrl = typeof window !== "undefined" ? `${window.location.origin}/tournaments/${t.id}` : `/tournaments/${t.id}`;
 
         return [
-            `TURNEU NOU: ${title}`,
+            `🏆 TURNEU NOU: ${title}`,
             ``,
-            `Data: ${when}`,
-            `Locație: ${location}`,
+            `📅 Data: ${when}`,
+            `📍 Locație: ${location}`,
             `Tip: ${type}`,
             `Format: ${format}`,
-            `Categorie: ${cats}`,
-            `Donație minimă recomandată: ${donation}`,
-            `Înscrieri: ${regOpen}`,
-            `Locuri: ${slotsLine}`,
+            `🏷️ Categorie: ${cats}`,
+            `💰 Donație minimă recomandată: ${donation}`,
+            `📝 Înscrieri: ${regOpen}`,
+            `👥 Locuri: ${slotsLine}`,
             ``,
-            `Detalii & înscriere:`,
+            `🔗 Detalii & înscriere:`,
             publicUrl,
         ].join("\n");
     }
@@ -632,7 +394,6 @@ export default function HomePage() {
     async function announceOnWhatsApp(t: Tournament) {
         const msg = buildWhatsappAnnouncement(t);
 
-        // Copiem mesajul în clipboard (fallback util)
         try {
             await navigator.clipboard.writeText(msg);
         } catch { }
@@ -641,298 +402,418 @@ export default function HomePage() {
         window.open(url, "_blank", "noopener,noreferrer");
     }
 
-    const navItemStyle: CSSProperties = {
-        padding: "10px 14px",
-        borderRadius: 10,
-        border: "1px solid #ddd",
-        textDecoration: "none",
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        whiteSpace: "nowrap",
-        lineHeight: 1,
-    };
+    const userCat = catLabel(playerCategory(userMpMax));
+
+
+    // Derived UI data (client-side)
+    const nowTs = Date.now();
+    const myUpcoming = tournaments
+        .filter((t) => myRegistrations[t.id]?.status === "REGISTERED")
+        .filter((t) => {
+            const ts = Date.parse(t.start_at);
+            return Number.isFinite(ts) ? ts >= nowTs - 2 * 60 * 60 * 1000 : true; // keep near-future items
+        })
+        .sort((a, b) => Date.parse(a.start_at) - Date.parse(b.start_at))
+        .slice(0, 3);
+
+    const tournamentsCount = tournamentsTotalCount || tournaments.length;
+
+    const APP_START = new Date("2026-01-12T00:00:00+02:00").getTime();
+
+    const daysRunning = Math.max(
+        1,
+        Math.floor((nowTs - APP_START) / (1000 * 60 * 60 * 24)) + 1
+    );
+
+    const IBAN = "RO77 REVO 0000 1310 3910";
 
     return (
-        <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
-            {/* LOGO sus, centrat */}
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-                <Image
-                    src="/Logo_POLISPORT_TT_v2.png"
-                    alt="PoliSport Table Tennis"
-                    width={260 * 1.25}
-                    height={80 * 1.25}
-                    priority
-                    style={{ height: "auto" }}
-                />
-            </div>
-            <header style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
-                <div>
-                    <h1 style={{ fontSize: 28, fontWeight: 800 }}>PoliSport Table Tennis</h1>
-                    <p style={{ opacity: 0.8 }}>Manager Turnee & jucători @ UNSTPB</p>
-                    <p style={{ opacity: 0.8 }}>
-                        <Link
-                            href="/info"
-                            style={{
-                                textDecoration: "none",
-                                color: "inherit",
-                                fontWeight: 500,
-                            }}
-                        >
-                            ℹ️ Info utile & Regulament
-                        </Link>
-                    </p>
-                </div>
+        <main className="min-h-screen" style={{ background: "var(--ps-bg)" }}>
+            {/* Top bar */}
+            <div className="w-full" style={{ background: "var(--ps-bg)" }}>
+                <div className="mx-auto max-w-6xl px-4 pt-4">
+                    <div className="rounded-2xl border shadow-sm" style={{ borderColor: "var(--ps-border)", background: "var(--ps-card)", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
+                        <div className="px-4 py-1">
+                            {/* Action bar */}
+                            <div className="flex justify-end gap-1 flex-wrap pt-1">
+                                {userEmail ? (
+                                    <>
+                                        <Link href="/account" className="ps-btn ps-btn-outline text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:bg-black/5">
+                                            Contul meu
+                                        </Link>
+                                        <button onClick={logout} className="ps-btn ps-btn-outline text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:bg-black/5">
+                                            Logout
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Link href="/login?mode=login" className="ps-btn ps-btn-primary text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:brightness-95">
+                                            Login
+                                        </Link>
+                                        <Link href="/login?mode=register" className="ps-btn ps-btn-outline text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:bg-black/5">
+                                            Creează cont
+                                        </Link>
+                                    </>
+                                )}
 
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-                    <div
-                        style={{
-                            display: "flex",
-                            gap: 12,
-                            alignItems: "center",
-                            justifyContent: "flex-end",
-                            flexWrap: "wrap",
-                            maxWidth: 520,
-                        }}
-                    >
-                        {userEmail ? (
-                            <>
-                                <Link href="/account" style={navItemStyle}>
-                                    Contul meu
+                                <Link href="/tournaments" className="ps-btn ps-btn-outline text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:bg-black/5">
+                                    Istoric Turnee
                                 </Link>
+                            </div>
 
-                                <button
-                                    onClick={logout}
-                                    style={{ ...navItemStyle, background: "transparent", cursor: "pointer" }}
-                                >
-                                    Logout
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <Link href="/login?mode=login" style={navItemStyle}>
-                                    Login
-                                </Link>
+                            {/* Branding */}
+                            <div className="mt-2 flex items-center gap-4">
+                                <div className="flex items-center gap-2 min-w-[220px]">
+                                    <Image
+                                        src="/Logo_POLISPORT_TT_v1.png"
+                                        alt="PoliSport Table Tennis"
+                                        width={200}
+                                        height={62}
+                                        priority
+                                        style={{ height: "auto" }}
+                                    />
+                                </div>
 
-                                <Link href="/login?mode=register" style={navItemStyle}>
-                                    Register
-                                </Link>
-                            </>
-                        )}
-
-                        <Link href="/tournaments" style={navItemStyle}>
-                            Istoric Turnee
-                        </Link>
+                                <div className="min-w-[320px]">
+                                    <div className="text-3xl lg:text-4xl font-extrabold tracking-tight" style={{ color: "var(--ps-primary)" }}>
+                                        PoliSport Table Tennis
+                                    </div>
+                                    <div className="mt-1 text-base lg:text-lg" style={{ color: "var(--ps-muted)" }}>
+                                        Manager turnee & jucători @ UNSTPB
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    {userEmail ? (
-                        <div style={{ textAlign: "right", fontSize: 12, opacity: 0.85, lineHeight: 1.35 }}>
-                            <div>
-                                Ești autentificat ca: <b>{userName ?? "Utilizator"}</b>{" "}
-                                <span style={{ opacity: 0.85 }}>
-                                    (MP: <b>{userMp}</b> · Max: <b>{userMpMax}</b>)
-                                </span>
-                            </div>
-
-                            <div>
-                                {userEmail}{" "}
-                                {hasAmatur && typeof userAmaturMp === "number" ? (
-                                    <span style={{ opacity: 0.9 }}>
-                                        · Amatur MP: <b>{userAmaturMp}</b>
-                                    </span>
-                                ) : null}
-                            </div>
-
-                            <div style={{ opacity: 0.9 }}>
-                                Cont Amatur: <b>{hasAmatur ? "Da" : "Nu"}</b>
-                            </div>
-
-                            <div style={{ opacity: 0.85 }}>
-                                Categoria ta: <b>{catLabel(playerCategory(userMpMax))}</b>
-                            </div>
-                        </div>
-                    ) : (
-                        <div style={{ textAlign: "right", fontSize: 12, opacity: 0.75 }}>
-                            Nu ești autentificat.
-                        </div>
-                    )}
-                </div>
-            </header>
-
-            <section style={{ marginTop: 24 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                    <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Planificare Turnee</h2>
-
-                    {isAdmin ? (
-                        <Link href="/admin/tournaments/new" style={{ ...navItemStyle, fontSize: 14 }}>
-                            + Creează Turneu
-                        </Link>
-                    ) : null}
-                </div>
-
-                {loading ? (
-                    <p style={{ marginTop: 12 }}>Se încarcă...</p>
-                ) : tournaments.length === 0 ? (
-                    <p style={{ marginTop: 12, opacity: 0.8 }}>Nu există turnee încă.</p>
-                ) : (
-                    <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
-                        {tournaments.map((t) => {
-                            const reg = myRegistrations[t.id];
-                            const regOpen = !!t.registration_open;
-                            const notFull = !(t.is_full ?? false);
-
-                            // Eligibilitate (în spate) rămâne bazată pe allowed_categories.
-                            const allowed =
-                                Array.isArray(t.allowed_categories) && t.allowed_categories.length > 0
-                                    ? (t.allowed_categories as TournamentCategory[])
-                                    : t.category
-                                        ? ([t.category] as TournamentCategory[])
-                                        : (["ALL"] as TournamentCategory[]);
-
-                            const canShowJoin = userId && regOpen && notFull && (reg?.status ?? null) !== "REGISTERED";
-                            const canShowWithdraw = userId && regOpen && reg?.status === "REGISTERED";
-
-                            return (
-                                <div key={t.id} style={{ border: "1px solid #eee", borderRadius: 14, padding: 14 }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                                        <div>
-                                            <div style={{ fontWeight: 800 }}>{t.title}</div>
-                                            <div style={{ opacity: 0.8, fontSize: 14 }}>
-                                                {toLocalRO24(t.start_at)} • {t.location ?? "—"}
-                                            </div>
-
-                                            <div style={{ marginTop: 8, fontSize: 13, opacity: 0.9 }}>
-                                                <div>Tip: {t.is_rated ? "Punctat" : "Agrement"}</div>
-                                                {/* ✅ FIX: pe card afișăm doar categoria turneului (category), nu allowed_categories */}
-                                                <div>Categorii: {cardCategoryText(t)}</div>
-                                                <div>
-                                                    Donație minimă recomandată:{" "}
-                                                    <b>{((t as any).donation_info ?? "").toString().trim() || "Gratuit"}</b>
-                                                </div>
-                                            </div>
+                    <div className="mx-auto max-w-6xl px py-6">
+                        {/* Hero */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Left: Player hub */}
+                            <div className="ps-card p-6">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <div className="text-xl font-extrabold" style={{ color: "var(--ps-primary)" }}>
+                                            PANOUL MEU
                                         </div>
+                                        <p className="mt-2 text-sm" style={{ color: "var(--ps-muted)" }}>
+                                            Informații despre cont, înscrieri și remindere.
+                                        </p>
+                                    </div>
+                                    {isAdmin ? (
+                                        <Link href="/admin/tournaments/new" className="ps-btn ps-btn-outline text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:bg-black/5">
+                                            + Creează Turneu
+                                        </Link>
+                                    ) : null}
+                                </div>
 
-                                        <div style={{ textAlign: "right", fontSize: 13, opacity: 0.85 }}>
-                                            <div>
-                                                Format:{" "}
-                                                {t.format === "LOWER_UPPER_KO"
-                                                    ? "Inferioare→Superioare→KO"
-                                                    : t.format === "GROUPS_KO"
-                                                        ? "Grupe→KO"
-                                                        : t.format}
-                                            </div>
-                                            <div>Status: {prettyStatus(t.status)}</div>
-
-                                            {typeof t.max_players === "number" && <div>Nr. max. jucători: {t.max_players}</div>}
-
-                                            {typeof t.registered_count === "number" && (
-                                                <div>
-                                                    Înscriși: {t.registered_count}
-                                                    {t.max_players != null ? ` / ${t.max_players}` : ""}
-                                                </div>
+                                {/* Status boxes */}
+                                <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="rounded-2xl border p-4" style={{ borderColor: "var(--ps-border)", background: "white" }}>
+                                        <div className="text-xs font-extrabold tracking-wide" style={{ color: "var(--ps-muted)" }}>
+                                            STATUS
+                                        </div>
+                                        <div className="mt-1 text-[13px] font-semibold" style={{ color: "var(--ps-text)" }}>
+                                            {userEmail ? (
+                                                <>
+                                                    Autentificat ca:<br />
+                                                    <b>{userName ?? "Utilizator"}</b>
+                                                </>
+                                            ) : (
+                                                <>Nu ești autentificat</>
                                             )}
-
-                                            {typeof t.spots_left === "number" && <div>Locuri rămase: {t.spots_left}</div>}
-
-                                            <div>{reg ? <span>Starea mea: {reg.status}</span> : <span>Starea mea: —</span>}</div>
+                                        </div>
+                                        <div className="mt-1 text-xs" style={{ color: "var(--ps-muted)" }}>
+                                            {userEmail}
                                         </div>
                                     </div>
 
-                                    {!userId ? (
-                                        <div style={{ marginTop: 10, opacity: 0.8 }}>Autentifică-te ca să te înscrii.</div>
-                                    ) : (
-                                        <>
-                                            <div
-                                                style={{
-                                                    marginTop: 10,
-                                                    display: "flex",
-                                                    justifyContent: "space-between",
-                                                    gap: 10,
-                                                    alignItems: "center",
-                                                    flexWrap: "wrap",
-                                                }}
-                                            >
-                                                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                                                    {canShowJoin && (
-                                                        <button
-                                                            onClick={() => registerToTournament(t)}
-                                                            style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}
-                                                        >
-                                                            Înscrie-mă
-                                                        </button>
-                                                    )}
+                                    <div className="rounded-2xl border p-4" style={{ borderColor: "var(--ps-border)", background: "white" }}>
+                                        <div className="text-xs font-extrabold tracking-wide" style={{ color: "var(--ps-muted)" }}>
+                                            CATEGORIA TA
+                                        </div>
+                                        <div className="mt-1 text-[13px] font-semibold" style={{ color: "var(--ps-text)" }}>
+                                            {catLabel(playerCategory(userMpMax))}
+                                        </div>
+                                        <div className="mt-1 text-xs" style={{ color: "var(--ps-muted)" }}>
+                                            MP: <b style={{ color: "var(--ps-text)" }}>{userMp}</b> · Max:{" "}
+                                            <b style={{ color: "var(--ps-text)" }}>{userMpMax}</b>
+                                            {hasAmatur && typeof userAmaturMp === "number" ? (
+                                                <>
+                                                    {" "}
+                                                    · Amatur MP: <b style={{ color: "var(--ps-text)" }}>{userAmaturMp}</b>
+                                                </>
+                                            ) : null}
+                                        </div>
+                                        <div className="mt-1 text-xs" style={{ color: "var(--ps-muted)" }}>
+                                            Cont Amatur:{" "}
+                                            <b style={{ color: "var(--ps-text)" }}>{hasAmatur ? "Da" : "Nu"}</b>
+                                        </div>
+                                    </div>
+                                </div>
 
-                                                    {canShowWithdraw && (
-                                                        <button
-                                                            onClick={() => withdrawFromTournament(t)}
-                                                            style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}
-                                                        >
-                                                            Retrage-mă
-                                                        </button>
-                                                    )}
+                                {/* Upcoming registrations */}
+                                <div className="mt-5">
+                                    <div className="text-base font-extrabold" style={{ color: "var(--ps-primary)" }}>
+                                        Ești înscris la următoarele turnee:
+                                    </div>
+                                    <div className="mt-2 space">
+                                        {myUpcoming.length === 0 ? (
+                                            <div className="text-sm" style={{ color: "var(--ps-muted)" }}>
+                                                Momentan nu ești înscris la niciun turneu viitor.
+                                            </div>
+                                        ) : (
+                                            myUpcoming.map((t, idx) => (
+                                                <div key={t.id} className="flex items-center justify-between gap-3">
+                                                    <div className="text-sm font-semibold" style={{ color: "var(--ps-text)" }}>
+                                                        {idx + 1}. {t.title}{" "}
+                                                        <span className="font-normal" style={{ color: "var(--ps-muted)" }}>
+                                                            ({toLocalRO24(t.start_at)})
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
 
-                                                    <Link
-                                                        href={`/tournaments/${t.id}`}
-                                                        style={{
-                                                            padding: "8px 12px",
-                                                            borderRadius: 10,
-                                                            border: "1px solid #ddd",
-                                                            textDecoration: "none",
-                                                            display: "inline-flex",
-                                                            alignItems: "center",
-                                                        }}
-                                                    >
-                                                        Vezi turneu
-                                                    </Link>
+                                    <div className="mt-5 flex items-center justify-between gap-3 flex-wrap">
+                                        <Link href="/info" className="ps-btn ps-btn-outline text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:bg-black/5">
+                                            Citește regulamentul
+                                        </Link>
+
+                                        <Link href="/account" className="ps-btn ps-btn-outline text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:bg-black/5">
+                                            Contul meu
+                                        </Link>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Right: Contribution */}
+                            <div className="ps-card p-6">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <div className="text-base font-extrabold" style={{ color: "var(--ps-primary)" }}>
+                                            CONTRIBUIE ȘI TU
+                                        </div>
+                                        <p className="mt-3 text-sm" style={{ color: "var(--ps-muted)", maxWidth: 420 }}>
+                                            Dacă îți place ce am realizat până acum, poți susține proiectul printr-o mică donație. Fiecare contribuție va ajuta la dezvoltarea aplicației, a acestei comunități și la organizarea de noi turnee gratuite. Mulțumesc pentru implicare!
+                                        </p>
+                                        <div className="mt-3 text-base font-extrabold" style={{ color: "var(--ps-muted)" }}>
+                                            Cont IBAN:
+                                            <br />
+                                            <span style={{ color: "var(--ps-text)" }}>{IBAN}</span>
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        className="rounded-2xl border p-2 overflow-hidden"
+                                        style={{ borderColor: "var(--ps-border)", background: "white", minWidth: 170 }}
+                                    >
+                                        <Image
+                                            src="/qr_contribute.png"
+                                            alt="QR contribuție"
+                                            width={170}
+                                            height={170}
+                                            style={{ width: "100%", height: "auto", borderRadius: 10 }}
+                                        />
+                                        <div className="mt-2 text-center text-xs font-semibold" style={{ color: "var(--ps-muted)" }}>
+                                            Revolut tag @cozzy90
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Stats */}
+                                <div className="mt-6 grid grid-cols-3 gap-3">
+                                    <div className="rounded-2xl border p-4 text-center" style={{ borderColor: "var(--ps-border)", background: "white" }}>
+                                        <div className="text-2xl font-extrabold" style={{ color: "var(--ps-primary)" }}>🏆</div>
+                                        <div className="mt-1 text-2xl font-extrabold" style={{ color: "var(--ps-primary)" }}>
+                                            {tournamentsCount}
+                                        </div>
+                                        <div className="mt-1 text-[11px] font-extrabold tracking-wide" style={{ color: "var(--ps-muted)" }}>
+                                            TURNEE ORGANIZATE
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border p-4 text-center" style={{ borderColor: "var(--ps-border)", background: "white" }}>
+                                        <div className="text-2xl font-extrabold" style={{ color: "var(--ps-primary)" }}>👥</div>
+                                        <div className="mt-1 text-2xl font-extrabold" style={{ color: "var(--ps-primary)" }}>
+                                            {playersCount}
+                                        </div>
+                                        <div className="mt-1 text-[11px] font-extrabold tracking-wide" style={{ color: "var(--ps-muted)" }}>
+                                            JUCĂTORI ÎN APLICAȚIE
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border p-4 text-center" style={{ borderColor: "var(--ps-border)", background: "white" }}>
+                                        <div className="text-2xl font-extrabold" style={{ color: "var(--ps-primary)" }}>📅</div>
+                                        <div className="mt-1 text-2xl font-extrabold" style={{ color: "var(--ps-primary)" }}>
+                                            {daysRunning}
+                                        </div>
+                                        <div className="mt-1 text-[11px] font-extrabold tracking-wide" style={{ color: "var(--ps-muted)" }}>
+                                            ZILE DE FUNCȚIONARE
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-8">
+                            <div className="flex items-center justify-between gap-3">
+                                <h2 className="text-base font-extrabold" style={{ color: "var(--ps-primary)" }}>
+                                    Planificare Turnee
+                                </h2>
+
+                                {isAdmin ? (
+                                    <Link href="/admin/tournaments/new" className="ps-btn ps-btn-outline text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:bg-black/5">
+                                        + Creează Turneu
+                                    </Link>
+                                ) : null}
+                            </div>
+
+                            {loading ? (
+                                <p className="mt-4 text-sm" style={{ color: "var(--ps-muted)" }}>
+                                    Se încarcă...
+                                </p>
+                            ) : tournaments.length === 0 ? (
+                                <p className="mt-4 text-sm" style={{ color: "var(--ps-muted)" }}>
+                                    Nu există turnee încă.
+                                </p>
+                            ) : (
+                                <div className="mt-4 grid gap-4">
+                                    {tournaments.map((t) => {
+                                        const reg = myRegistrations[t.id];
+                                        const regOpen = !!t.registration_open;
+                                        const notFull = !(t.is_full ?? false);
+
+                                        const canShowJoin = userId && regOpen && notFull && (reg?.status ?? null) !== "REGISTERED";
+                                        const canShowWithdraw = userId && regOpen && reg?.status === "REGISTERED";
+
+                                        return (
+                                            <div key={t.id} className="ps-card p-5">
+                                                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                                                    <div className="min-w-0">
+                                                        <div className="text-base font-extrabold" style={{ color: "var(--ps-primary)" }}>
+                                                            🏆{t.title}
+                                                        </div>
+                                                        <div className="mt-1 text-xs" style={{ color: "var(--ps-muted)" }}>
+                                                            {toLocalRO24(t.start_at)} • {t.location ?? "—"}
+                                                        </div>
+
+                                                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                            <div className="rounded-2xl border p-3" style={{ borderColor: "var(--ps-border)" }}>
+                                                                <div className="text-xs font-semibold uppercase" style={{ color: "var(--ps-muted)" }}>
+                                                                    Tip
+                                                                </div>
+                                                                <div className="mt-1 text-[13px] font-semibold">{t.is_rated ? "Punctat" : "Agrement"}</div>
+                                                            </div>
+
+                                                            <div className="rounded-2xl border p-3" style={{ borderColor: "var(--ps-border)" }}>
+                                                                <div className="text-xs font-semibold uppercase" style={{ color: "var(--ps-muted)" }}>
+                                                                    Categorie
+                                                                </div>
+                                                                <div className="mt-1 text-[13px] font-semibold">{cardCategoryText(t)}</div>
+                                                            </div>
+
+                                                            <div className="rounded-2xl border p-3" style={{ borderColor: "var(--ps-border)" }}>
+                                                                <div className="text-xs font-semibold uppercase" style={{ color: "var(--ps-muted)" }}>
+                                                                    Donație recomandată
+                                                                </div>
+                                                                <div className="mt-1 text-[13px] font-semibold">
+                                                                    {((t as any).donation_info ?? t.donation_recommended ?? t.donation_min ?? t.donation ?? "")
+                                                                        .toString()
+                                                                        .trim() || "Gratuit"}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="lg:text-right text-sm" style={{ color: "var(--ps-muted)" }}>
+                                                        <div>
+                                                            <b>Format:</b>{" "}
+                                                            {t.format === "LOWER_UPPER_KO"
+                                                                ? "Inferioare→Superioare→KO"
+                                                                : t.format === "GROUPS_KO"
+                                                                    ? "Grupe→KO"
+                                                                    : t.format}
+                                                        </div>
+                                                        <div>
+                                                            <b>Status:</b> {prettyStatus(t.status)}
+                                                        </div>
+
+                                                        {typeof t.max_players === "number" && <div><b>Max:</b> {t.max_players}</div>}
+
+                                                        {typeof t.registered_count === "number" && (
+                                                            <div>
+                                                                <b>Înscriși:</b> {t.registered_count}
+                                                                {t.max_players != null ? ` / ${t.max_players}` : ""}
+                                                            </div>
+                                                        )}
+
+                                                        {typeof t.spots_left === "number" && <div><b>Rămase:</b> {t.spots_left}</div>}
+
+                                                        <div className="mt-1">
+                                                            <b>Starea mea:</b> {reg ? reg.status : "—"}
+                                                        </div>
+                                                    </div>
                                                 </div>
 
-                                                {isAdmin ? (
-                                                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                                                        <Link
-                                                            href={`/admin/tournaments/${t.id}`}
-                                                            style={{ fontSize: 13, opacity: 0.85, textDecoration: "none" }}
-                                                        >
-                                                            Admin turneu
-                                                        </Link>
-
-                                                        <button
-                                                            onClick={() => announceOnWhatsApp(t)}
-                                                            style={{
-                                                                padding: "8px 12px",
-                                                                borderRadius: 10,
-                                                                border: "1px solid #25D366",
-                                                                color: "#25D366",
-                                                                background: "transparent",
-                                                                fontWeight: 900,
-                                                                cursor: "pointer",
-                                                            }}
-                                                            title="Deschide WhatsApp cu anunțul precompletat (mesajul se copiază și în clipboard)"
-                                                        >
-                                                            Anunță pe WhatsApp
-                                                        </button>
+                                                {!userId ? (
+                                                    <div className="mt-4 text-sm" style={{ color: "var(--ps-muted)" }}>
+                                                        Autentifică-te ca să te înscrii.
                                                     </div>
-                                                ) : null}
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </section>
+                                                ) : (
+                                                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {canShowJoin && (
+                                                                <button onClick={() => registerToTournament(t)} className="ps-btn ps-btn-primary text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:brightness-95">
+                                                                    Înscrie-mă
+                                                                </button>
+                                                            )}
 
-            <div style={{ display: "flex", gap: 10, justifyContent: "center", alignItems: "center", flexWrap: "wrap", marginTop: 18 }}>
-                <div style={{ display: "inline-flex" }}>
-                    <WhatsAppButton />
+                                                            {canShowWithdraw && (
+                                                                <button onClick={() => withdrawFromTournament(t)} className="ps-btn ps-btn-outline text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:bg-black/5">
+                                                                    Retrage-mă
+                                                                </button>
+                                                            )}
+
+                                                            <Link href={`/tournaments/${t.id}`} className="ps-btn ps-btn-outline text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:bg-black/5">
+                                                                Vezi turneu
+                                                            </Link>
+                                                        </div>
+
+                                                        {isAdmin ? (
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <Link href={`/admin/tournaments/${t.id}`} className="ps-btn ps-btn-outline text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:bg-black/5">
+                                                                    Admin turneu
+                                                                </Link>
+
+                                                                <button
+                                                                    onClick={() => announceOnWhatsApp(t)}
+                                                                    className="ps-btn text-sm hover:-translate-y-[1px] hover:shadow-md hover:bg-[rgba(37,211,102,0.10)]"
+                                                                    style={{ border: "1px solid #25D366", color: "#25D366", background: "transparent" }}
+                                                                    title="Deschide WhatsApp cu anunțul precompletat (mesajul se copiază și în clipboard)"
+                                                                >
+                                                                    Anunță pe WhatsApp
+                                                                </button>
+                                                            </div>
+                                                        ) : null}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        <footer className="mt-10 pb-6 text-center text-sm" style={{ color: "var(--ps-muted)" }}>
+                            Creat de <span style={{ color: "var(--ps-primary)", fontWeight: 800 }}>Cristoiu Cozmin-Adrian</span> @ FIIR pentru
+                            comunitatea pasionaților de tenis de masă din{" "}
+                            <span style={{ color: "var(--ps-primary-2)", fontWeight: 800 }}>UNSTPB</span>.
+                        </footer>
+                    </div>
                 </div>
             </div>
-
-            <footer style={{ marginTop: 28, opacity: 0.85, fontSize: 13, textAlign: "center" }}>
-                Creat de <span style={{ color: "#f5d000", fontWeight: 600 }}>Cristoiu Cozmin-Adrian</span> @ FIIR pentru
-                comunitatea pasionaților de tenis de masă din
-                <span style={{ color: "#4169E1", fontWeight: 600 }}> UNSTPB</span>
-            </footer>
         </main>
     );
 }

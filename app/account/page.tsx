@@ -74,17 +74,20 @@ const navBtn: React.CSSProperties = {
 
 const card: React.CSSProperties = {
     marginTop: 16,
-    border: "1px solid #222",
+    border: "0px solid #222",
     borderRadius: 14,
     padding: 16,
-    background: "rgba(255,255,255,0.03)",
+    background: "white",
+    boxShadow: "0 3px 6px rgba(0,0,0,0.4)",
 };
 
+
 const smallCard: React.CSSProperties = {
-    border: "1px solid #333",
+    border: "0px solid #333",
     borderRadius: 14,
     padding: 14,
-    background: "rgba(0,0,0,0.25)",
+    background: "white",
+    boxShadow: "0 3px 6px rgba(0,0,0,0.4)",
 };
 
 function Row({ label, value }: { label: string; value: any }) {
@@ -524,7 +527,7 @@ export default function AccountPage() {
                         sau RLS blochează citirea.
                     </div>
                 ) : (
-                    <div style={{ display: "flex", gap: 16, alignItems: "stretch", flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", gap: 16, alignItems: "stretch", flexWrap: "wrap",  }}>
                         <div style={{ flex: "1 1 520px" }}>
                             <div style={{ display: "grid", gap: 10 }}>
                                 <Row label="Nume" value={name} />
@@ -814,7 +817,7 @@ export default function AccountPage() {
                                         border: "1px solid #333",
                                         borderRadius: 12,
                                         padding: 12,
-                                        background: "rgba(0,0,0,0.25)",
+                                        background: "rgba(255,255,255,0)",
                                     }}
                                 >
                                     <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>

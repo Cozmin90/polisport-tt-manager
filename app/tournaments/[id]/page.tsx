@@ -416,15 +416,31 @@ export default function PublicTournamentReadOnlyPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tournamentId]);
 
-    if (loading) return <main style={{ padding: 24 }}>Se încarcă...</main>;
+    if (loading) {
+        return (
+            <main className="mx-auto max-w-6xl px-4 py-8">
+                <div className="ps-card p-6">
+                    <div className="text-sm font-semibold text-slate-700">Se încarcă…</div>
+                </div>
+            </main>
+        );
+    }
 
     if (!title) {
         return (
-            <main style={{ maxWidth: 1150, margin: "0 auto", padding: 24 }}>
-                <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <Link href="/tournaments">← Înapoi la istoric</Link>
-                </header>
-                <div style={{ marginTop: 14, opacity: 0.85 }}>Turneul nu a fost găsit sau nu este disponibil public.</div>
+            <main className="mx-auto max-w-6xl px-4 py-8">
+                <div className="flex items-center justify-between gap-4">
+                    <Link href="/tournaments" className="text-sm font-semibold text-slate-700 hover:underline">
+                        ← Înapoi la istoric
+                    </Link>
+                </div>
+
+                <div className="ps-card mt-4 p-6">
+                    <div className="text-base font-extrabold">Turneul nu a fost găsit</div>
+                    <div className="mt-1 text-sm text-slate-600">
+                        Turneul nu este disponibil public sau a fost șters.
+                    </div>
+                </div>
             </main>
         );
     }
@@ -432,35 +448,61 @@ export default function PublicTournamentReadOnlyPage() {
     const sizeForLabel = nextPow2((matchesKO.filter((m) => (m.round ?? 1) === 1).length || 1) * 2);
 
     return (
-        <main style={{ maxWidth: 1150, margin: "0 auto", padding: 24 }}>
-            <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <main className="mx-auto max-w-6xl px-4 py-8">
+            {/* Top bar */}
+            <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
-                    <h1 style={{ fontSize: 22, fontWeight: 800 }}>{title}</h1>
-                    <div style={{ opacity: 0.8, fontSize: 13 }}>
+                    <div className="text-xs font-semibold text-slate-500">Turneu</div>
+                    <h1 className="text-2xl font-extrabold tracking-tight">{title}</h1>
+                    <div className="mt-1 text-sm text-slate-600">
                         Format: {format === "LOWER_UPPER_KO" ? "Inferioare → Superioare → KO" : "Grupe → KO direct"}
                     </div>
                 </div>
-                <Link href="/tournaments">← Înapoi la istoric</Link>
+
+                <div className="flex items-center gap-2">
+                    <Link href="/tournaments" className="ps-btn ps-btn-outline text-sm">
+                        ← Înapoi la istoric
+                    </Link>
+                </div>
             </header>
 
+            {/* Quick stats */}
+            <section className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="ps-card p-4">
+                    <div className="text-xs font-semibold text-slate-500">Participanți</div>
+                    <div className="mt-1 text-lg font-extrabold">{participants.length}</div>
+                </div>
+                <div className="ps-card p-4">
+                    <div className="text-xs font-semibold text-slate-500">Grupe</div>
+                    <div className="mt-1 text-lg font-extrabold">{groupsLower.length + (isGroupsKo ? 0 : groupsUpper.length)}</div>
+                </div>
+                <div className="ps-card p-4">
+                    <div className="text-xs font-semibold text-slate-500">KO</div>
+                    <div className="mt-1 text-lg font-extrabold">{matchesKO.length ? "Activ" : "—"}</div>
+                </div>
+            </section>
+
             {/* CLASAMENT TOTAL */}
-            <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
-                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Clasament total (toți înscrișii)</h2>
+            <section className="ps-card mt-4 p-6">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                    <h2 className="text-lg font-extrabold">Clasament total</h2>
+                    <div className="text-xs font-semibold text-slate-500">Read-only (public)</div>
+                </div>
 
                 {overallRanking.length === 0 ? (
-                    <div style={{ marginTop: 10, opacity: 0.8 }}>Nu există participanți.</div>
+                    <div className="mt-3 text-sm text-slate-600">Nu există participanți.</div>
                 ) : (
-                    <div style={{ overflowX: "auto", marginTop: 10 }}>
-                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                    <div className="mt-4 overflow-x-auto">
+                        <table className="w-full min-w-[760px] border-collapse text-sm">
                             <thead>
-                                <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
-                                    <th style={{ padding: "8px 6px", width: 60 }}>Loc</th>
-                                    <th style={{ padding: "8px 6px", width: 200 }}>Jucător</th>
-                                    <th style={{ padding: "8px 6px", width: 60 }}>KO</th>
-                                    <th style={{ padding: "8px 6px", width: 120 }}>Categorie</th>
-                                    <th style={{ padding: "8px 6px", width: 120, textAlign: "center" }}>Victorii gr. inf.</th>
-                                    <th style={{ padding: "8px 6px", width: 120, textAlign: "center" }}>Victorii gr. sup.</th>
-                                    <th style={{ padding: "8px 6px", width: 140, textAlign: "right" }}>MP Turneu</th>
+                                <tr className="text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                                    <th className="border-b border-slate-200 px-2 py-3 w-[72px]">Loc</th>
+                                    <th className="border-b border-slate-200 px-2 py-3">Jucător</th>
+                                    <th className="border-b border-slate-200 px-2 py-3 w-[110px]">KO</th>
+                                    <th className="border-b border-slate-200 px-2 py-3 w-[160px]">Categorie</th>
+                                    <th className="border-b border-slate-200 px-2 py-3 w-[140px] text-center">Victorii inf.</th>
+                                    <th className="border-b border-slate-200 px-2 py-3 w-[140px] text-center">Victorii sup.</th>
+                                    <th className="border-b border-slate-200 px-2 py-3 w-[150px] text-right">MP Turneu</th>
                                 </tr>
                             </thead>
 
@@ -481,30 +523,41 @@ export default function PublicTournamentReadOnlyPage() {
                                     const persistedIsZv = Boolean(regMap.get(p.id)?.is_zv);
 
                                     return (
-                                        <tr key={p.id} style={{ borderBottom: "1px solid #f3f3f3" }}>
-                                            <td style={{ padding: "8px 6px" }}>
-                                                <b>{idx + 1}</b> {placeLabel}
+                                        <tr key={p.id} className="border-b border-slate-100">
+                                            <td className="px-2 py-3 font-extrabold">
+                                                {idx + 1} <span className="ml-1">{placeLabel}</span>
                                             </td>
 
-                                            <td style={{ padding: "8px 6px", fontWeight: 900 }}>{p.name}</td>
-                                            <td style={{ padding: "8px 6px" }}>{koLabel}</td>
+                                            <td className="px-2 py-3">
+                                                <div className="font-extrabold text-slate-900">{p.name}</div>
+                                            </td>
+                                            <td className="px-2 py-3 text-slate-700">{koLabel ?? "—"}</td>
 
-                                            <td style={{ padding: "8px 6px" }}>
-                                                {catShort(p.cat)}, MP:{Number.isFinite(p.mpReg) ? Math.round(p.mpReg * 100) / 100 : "—"}
+                                            <td className="px-2 py-3 text-slate-700">
+                                                <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-bold">
+                                                    {catShort(p.cat)}
+                                                </span>
+                                                <span className="ml-2 text-xs font-semibold text-slate-500">
+                                                    MP: {Number.isFinite(p.mpReg) ? Math.round(p.mpReg * 100) / 100 : "—"}
+                                                </span>
                                             </td>
 
-                                            <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.winsLower ?? 0}</td>
-                                            <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.winsUpper ?? 0}</td>
+                                            <td className="px-2 py-3 text-center font-semibold">{p.winsLower ?? 0}</td>
+                                            <td className="px-2 py-3 text-center font-semibold">{p.winsUpper ?? 0}</td>
 
-                                            <td style={{ padding: "8px 6px", textAlign: "right" }}>
+                                            <td className="px-2 py-3 text-right">
                                                 {persistedIsZv || totalWins === 0 ? (
-                                                    <span style={{ fontSize: 12, fontWeight: 900 }}>ZV</span>
+                                                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-extrabold text-slate-700">
+                                                        ZV
+                                                    </span>
                                                 ) : p.mpTournament == null ? (
                                                     "—"
                                                 ) : (
                                                     <span>
-                                                        {(Math.round(p.mpTournament * 100) / 100).toString()}
-                                                        {p.mpBonus > 0 ? <span style={{ marginLeft: 6, fontSize: 12, opacity: 0.9 }}>(+{p.mpBonus})</span> : null}
+                                                        <span className="font-extrabold">{(Math.round(p.mpTournament * 100) / 100).toString()}</span>
+                                                        {p.mpBonus > 0 ? (
+                                                            <span className="ml-2 text-xs font-semibold text-slate-500">(+{p.mpBonus})</span>
+                                                        ) : null}
                                                     </span>
                                                 )}
                                             </td>
@@ -514,18 +567,21 @@ export default function PublicTournamentReadOnlyPage() {
                             </tbody>
                         </table>
 
-                        <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
-                            ZV = zero victorii în turneu. Sortare: Podium → runda KO → rank/grupe → MP (la înscriere) → alfabetic.
+                        <div className="mt-3 text-xs text-slate-500">
+                            ZV = zero victorii în turneu. (Read-only)
                         </div>
                     </div>
                 )}
             </section>
 
             {/* GRUPE LOWER */}
-            <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
-                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>{isGroupsKo ? "Grupe" : "Grupe inferioare"}</h2>
+            <section className="ps-card mt-4 p-6">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                    <h2 className="text-lg font-extrabold">{isGroupsKo ? "Grupe" : "Grupe inferioare"}</h2>
+                    <div className="text-xs font-semibold text-slate-500">Clasamente + meciuri</div>
+                </div>
 
-                <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+                <div className="mt-4 grid gap-3">
                     {groupsLower.length === 0 ? (
                         <div style={{ opacity: 0.8 }}>{isGroupsKo ? "Nu există grupe încă." : "Nu există grupe inferioare încă."}</div>
                     ) : (
@@ -626,10 +682,13 @@ export default function PublicTournamentReadOnlyPage() {
 
             {/* GRUPE UPPER */}
             {!isGroupsKo && (
-                <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
-                    <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Grupe superioare</h2>
+                <section className="ps-card mt-4 p-6">
+                    <div className="flex flex-wrap items-end justify-between gap-3">
+                        <h2 className="text-lg font-extrabold">Grupe superioare</h2>
+                        <div className="text-xs font-semibold text-slate-500">Clasamente + meciuri</div>
+                    </div>
 
-                    <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+                    <div className="mt-4 grid gap-3">
                         {groupsUpper.length === 0 ? (
                             <div style={{ opacity: 0.8 }}>Nu există grupe superioare încă.</div>
                         ) : (
@@ -724,8 +783,11 @@ export default function PublicTournamentReadOnlyPage() {
             )}
 
             {/* KO (2 coloane; finala centrată; fără “Winner set” și fără “Scor:” text) */}
-            <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
-                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Tablou eliminatoriu (KO)</h2>
+            <section className="ps-card mt-4 p-6">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                    <h2 className="text-lg font-extrabold">Tablou eliminatoriu (KO)</h2>
+                    <div className="text-xs font-semibold text-slate-500">Read-only (public)</div>
+                </div>
 
                 {matchesKO.length === 0 ? (
                     <div style={{ marginTop: 10, opacity: 0.8 }}>Nu există KO încă.</div>

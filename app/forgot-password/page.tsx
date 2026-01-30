@@ -115,15 +115,6 @@ export default function ForgotPasswordPage() {
                     </div>
                 ) : null}
 
-                <div style={{ marginTop: 10, opacity: 0.8, fontSize: 13 }}>
-                    <div style={{ fontWeight: 800, marginBottom: 6 }}>Notă (Supabase)</div>
-                    În Supabase → Authentication → URL Configuration, asigură-te că ai
-                    adăugat la <b>Redirect URLs</b>:
-                    <div style={{ marginTop: 6, fontFamily: "monospace" }}>
-                        {"http://localhost:3000/reset-password"}
-                    </div>
-                    (și domeniul tău de producție dacă e cazul)
-                </div>
             </div>
         </div>
     );

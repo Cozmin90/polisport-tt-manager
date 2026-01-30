@@ -203,6 +203,7 @@ export default function NewTournamentPage() {
                             borderRadius: 10,
                             border: "1px solid #ddd",
                             fontSize: 14,
+                            background: "white",
                         }}
                     />
                     <div style={{ fontSize: 12, opacity: 0.75 }}>
@@ -222,6 +223,7 @@ export default function NewTournamentPage() {
                                 borderRadius: 10,
                                 border: "1px solid #ddd",
                                 fontSize: 14,
+                                background: "white",
                             }}
                         />
                         {startAtLocal && (
@@ -252,6 +254,7 @@ export default function NewTournamentPage() {
                                 borderRadius: 10,
                                 border: "1px solid #ddd",
                                 fontSize: 14,
+                                background: "white",
                             }}
                         />
                     </div>
@@ -268,7 +271,7 @@ export default function NewTournamentPage() {
                                 borderRadius: 10,
                                 border: "1px solid #ddd",
                                 fontSize: 14,
-                                background: "black",
+                                background: "white",
                             }}
                         >
                             <option value="GROUPS_KO">{fmtLabel("GROUPS_KO")}</option>
@@ -287,6 +290,7 @@ export default function NewTournamentPage() {
                                 borderRadius: 10,
                                 border: "1px solid #ddd",
                                 fontSize: 14,
+                                background: "white",
                             }}
                         />
                     </div>
@@ -303,7 +307,7 @@ export default function NewTournamentPage() {
                                 borderRadius: 10,
                                 border: "1px solid #ddd",
                                 fontSize: 14,
-                                background: "black",
+                                background: "white",
                             }}
                         >
                             <option value="RATED">Punctat (modifică MP)</option>
@@ -321,7 +325,7 @@ export default function NewTournamentPage() {
                                 borderRadius: 10,
                                 border: "1px solid #ddd",
                                 fontSize: 14,
-                                background: "black",
+                                background: "white",
                             }}
                         >
                             <option value="ALL">{catLabel("ALL")}</option>
@@ -346,7 +350,7 @@ export default function NewTournamentPage() {
                                 borderRadius: 10,
                                 border: "1px solid #ddd",
                                 fontSize: 14,
-                                background: "black",
+                                background: "white",
                             }}
                         >
                             <option value="true">Da</option>
@@ -365,6 +369,7 @@ export default function NewTournamentPage() {
                                 borderRadius: 10,
                                 border: "1px solid #ddd",
                                 fontSize: 14,
+                                background: "white",
                             }}
                         />
                         <div style={{ fontSize: 12, opacity: 0.75 }}>
@@ -381,7 +386,7 @@ export default function NewTournamentPage() {
                             padding: "10px 14px",
                             borderRadius: 10,
                             border: "1px solid #ddd",
-                            background: "black",
+                            background: "white",
                             cursor: "pointer",
                         }}
                         disabled={submitting}
@@ -396,7 +401,7 @@ export default function NewTournamentPage() {
                             padding: "10px 14px",
                             borderRadius: 10,
                             border: "1px solid #ddd",
-                            background: canSubmit ? "black" : "black",
+                            background: canSubmit ? "#25D366" : "white",
                             cursor: canSubmit ? "pointer" : "not-allowed",
                             fontWeight: 700,
                         }}

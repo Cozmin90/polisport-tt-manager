@@ -1859,7 +1859,30 @@ export default function AdminTournamentPage() {
     if (!isAdmin) return <main style={{ padding: 24 }}>Acces interzis.</main>;
 
     return (
-        <main style={{ maxWidth: 1150, margin: "0 auto", padding: 24 }}>
+        <main className="min-h-screen">
+        <div className="mx-auto max-w-6xl px-4 py-6">
+            {/* Top bar – Rankedin style */}
+            <div className="ps-card mb-6 px-5 py-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3">
+                        <Link href="/admin" className="ps-btn ps-btn-outline text-sm">Înapoi</Link>
+                        <div>
+                            <div className="text-xl font-extrabold leading-tight">Administrare turneu</div>
+                            <div className="text-sm" style={{ color: "var(--ps-muted)" }}>
+                                Gestionează înscrieri, grupe, KO și clasamentul final
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div className="px-3 py-1 rounded-full text-xs font-extrabold"
+                             style={{ border: "1px solid var(--ps-border)", color: "var(--ps-primary)", background: "rgba(47,63,115,0.06)" }}>
+                            Admin
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <style jsx global>{`
                 @media print {
                     .no-print {
@@ -2160,7 +2183,7 @@ export default function AdminTournamentPage() {
                                 const maxRound = groupMatches.reduce((acc, m) => Math.max(acc, m.round ?? 1), 1);
 
                                 return (
-                                    <div key={g.id} style={{ border: "1px solid #eee", borderRadius: 10, padding: 10 }}>
+                                    <div key={g.id} className="ps-card p-4">
                                         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
                                             <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
                                                 <div style={{ fontWeight: 900, fontSize: 15 }}>{g.name}</div>
@@ -2237,7 +2260,7 @@ export default function AdminTournamentPage() {
                                                             <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 900 }}>Runda {r}</div>
                                                             <div style={{ display: "grid", gap: 8, marginTop: 6, gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", justifyItems: "stretch", width: "100%", justifyContent: "stretch" }}>
                                                                 {roundMatches.map((m) => (
-                                                                    <div key={m.id} style={{ border: "1px solid #eee", borderRadius: 10, padding: 10 }}>
+                                                                    <div key={m.id} className="ps-card p-4">
                                                                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                                                                             <div style={{ fontSize: 14 }}>
                                                                                 <b>{m.p1?.full_name ?? "P1"}</b> vs <b>{m.p2?.full_name ?? (m.player2_id ? "P2" : "BYE")}</b>
@@ -2324,7 +2347,7 @@ export default function AdminTournamentPage() {
                                 <div style={{ opacity: 0.8 }}>Nu există grupe superioare încă.</div>
                             ) : (
                                 groupsUpper.map((g) => (
-                                    <div key={g.id} style={{ border: "1px solid #eee", borderRadius: 10, padding: 10 }}>
+                                    <div key={g.id} className="ps-card p-4">
                                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
                                             <div style={{ fontWeight: 900 }}>{g.name}</div>
                                             {matchesUpper.some((m) => m.group_id === g.id && m.player1_id && m.player2_id) ? (
@@ -2407,7 +2430,7 @@ export default function AdminTournamentPage() {
                                                                     }}
                                                                 >
                                                                     {roundMatches.map((m) => (
-                                                                        <div key={m.id} style={{ border: "1px solid #eee", borderRadius: 10, padding: 10 }}>
+                                                                        <div key={m.id} className="ps-card p-4">
                                                                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                                                                                 <div style={{ fontSize: 14 }}>
                                                                                     <b>{m.p1?.full_name ?? "P1"}</b> vs{" "}
@@ -2690,6 +2713,7 @@ export default function AdminTournamentPage() {
                     </section>
                 ) : null}
             </div>
-        </main>
+                </div>
+    </main>
     );
 }

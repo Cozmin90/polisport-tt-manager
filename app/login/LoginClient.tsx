@@ -8,210 +8,223 @@ import { supabase } from "../../lib/supabaseClient";
 type Mode = "login" | "register";
 
 const inputStyle: React.CSSProperties = {
-  padding: "12px 14px",
-  borderRadius: 12,
-  border: "2px solid #fff",
-  background: "transparent",
-  color: "inherit",
-  outline: "none",
+    padding: "12px 14px",
+    borderRadius: 12,
+    border: "1px solid rgba(15, 23, 42, 0.18)",
+    background: "#fff",
+    color: "inherit",
+    outline: "none",
 };
 
 const buttonStyle: React.CSSProperties = {
-  padding: "12px 14px",
-  borderRadius: 12,
-  border: "2px solid #fff",
-  background: "transparent",
-  fontWeight: 900,
-  cursor: "pointer",
+    padding: "12px 14px",
+    borderRadius: 12,
+    border: "1px solid rgba(15, 23, 42, 0.18)",
+    background: "#fff",
+    fontWeight: 900,
+    cursor: "pointer",
+    transition: "background 150ms ease, transform 150ms ease, box-shadow 150ms ease",
 };
 
 export default function LoginClient() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+    const router = useRouter();
+    const searchParams = useSearchParams();
 
-  const initialMode = (searchParams.get("mode") as Mode) || "login";
-  const [mode, setMode] = useState<Mode>(initialMode);
+    const initialMode = (searchParams.get("mode") as Mode) || "login";
+    const [mode, setMode] = useState<Mode>(initialMode);
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [hasAmatur, setHasAmatur] = useState(false);
-  const [amaturMp, setAmaturMp] = useState("");
+    const [firstName, setFirstName] = useState("");
+    const [lastName, setLastName] = useState("");
+    const [hasAmatur, setHasAmatur] = useState(false);
+    const [amaturMp, setAmaturMp] = useState("");
 
-  const [msg, setMsg] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+    const [msg, setMsg] = useState<string | null>(null);
+    const [busy, setBusy] = useState(false);
+    const [btnHover, setBtnHover] = useState(false);
 
-  useEffect(() => {
-    const m = (searchParams.get("mode") as Mode) || "login";
-    setMode(m);
-  }, [searchParams]);
+    useEffect(() => {
+        const m = (searchParams.get("mode") as Mode) || "login";
+        setMode(m);
+    }, [searchParams]);
 
-  async function ensurePlayerProfile() {
-    const { data, error } = await supabase.auth.getUser();
-    if (error) throw error;
-    const u = data.user;
-    if (!u) throw new Error("No user");
+    async function ensurePlayerProfile() {
+        const { data, error } = await supabase.auth.getUser();
+        if (error) throw error;
+        const u = data.user;
+        if (!u) throw new Error("No user");
 
-    const meta: any = u.user_metadata ?? {};
-    const fn = meta.first_name ?? "";
-    const ln = meta.last_name ?? "";
-    const dn = meta.display_name ?? `${ln} ${fn}`.trim();
+        const meta: any = u.user_metadata ?? {};
+        const fn = meta.first_name ?? "";
+        const ln = meta.last_name ?? "";
+        const dn = meta.display_name ?? `${ln} ${fn}`.trim();
 
-    await supabase.from("players").upsert({
-      id: u.id,
-      first_name: fn || null,
-      last_name: ln || null,
-      display_name: dn || null,
-      full_name: dn || "Utilizator",
-      has_amatur_account: !!meta.has_amatur_account,
-      amatur_mp: meta.amatur_mp ?? null,
-    });
-  }
-
-  async function doLogin() {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) return setMsg(error.message);
-
-    await ensurePlayerProfile();
-    router.push("/");
-  }
-
-  async function doRegister() {
-    if (!lastName.trim()) return setMsg("Te rog completează Nume.");
-    if (!firstName.trim()) return setMsg("Te rog completează Prenume.");
-
-    let mp: number | null = null;
-    if (hasAmatur) {
-      const n = Number(amaturMp);
-      if (!Number.isFinite(n) || n < 0) return setMsg("MP invalid.");
-      mp = Math.floor(n);
+        await supabase.from("players").upsert({
+            id: u.id,
+            first_name: fn || null,
+            last_name: ln || null,
+            display_name: dn || null,
+            full_name: dn || "Utilizator",
+            has_amatur_account: !!meta.has_amatur_account,
+            amatur_mp: meta.amatur_mp ?? null,
+        });
     }
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          display_name: `${firstName} ${lastName}`.trim(),
-          has_amatur_account: hasAmatur,
-          amatur_mp: mp,
-        },
-      },
-    });
+    async function doLogin() {
+        const { error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+        });
+        if (error) return setMsg(error.message);
 
-    if (error) return setMsg(error.message);
-
-    if (!data.session) {
-      return setMsg("Cont creat. Verifică emailul și apoi fă login.");
+        await ensurePlayerProfile();
+        router.push("/");
     }
 
-    await ensurePlayerProfile();
-    router.push("/");
-  }
+    async function doRegister() {
+        if (!lastName.trim()) return setMsg("Te rog completează Nume.");
+        if (!firstName.trim()) return setMsg("Te rog completează Prenume.");
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setMsg(null);
-    setBusy(true);
-    try {
-      mode === "login" ? await doLogin() : await doRegister();
-    } finally {
-      setBusy(false);
+        let mp: number | null = null;
+        if (hasAmatur) {
+            const n = Number(amaturMp);
+            if (!Number.isFinite(n) || n < 0) return setMsg("MP invalid.");
+            mp = Math.floor(n);
+        }
+
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+                data: {
+                    first_name: firstName.trim(),
+                    last_name: lastName.trim(),
+                    display_name: `${firstName} ${lastName}`.trim(),
+                    has_amatur_account: hasAmatur,
+                    amatur_mp: mp,
+                },
+            },
+        });
+
+        if (error) return setMsg(error.message);
+
+        if (!data.session) {
+            return setMsg("Cont creat. Verifică emailul și apoi fă login.");
+        }
+
+        await ensurePlayerProfile();
+        router.push("/");
     }
-  }
 
-  return (
-    <main style={{ maxWidth: 520, margin: "0 auto", padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <h1 style={{ fontSize: 22, fontWeight: 900 }}>
-          {mode === "login" ? "Login" : "Register"}
-        </h1>
-        <Link href="/" style={{ fontSize: 13 }}>
-          ← Acasă
-        </Link>
-      </div>
+    async function onSubmit(e: React.FormEvent) {
+        e.preventDefault();
+        setMsg(null);
+        setBusy(true);
+        try {
+            mode === "login" ? await doLogin() : await doRegister();
+        } finally {
+            setBusy(false);
+        }
+    }
 
-      <div style={{ marginTop: 12 }}>
-        {mode === "login" ? (
-          <Link href="/login?mode=register" style={{ fontSize: 13 }}>
-            Nu ai cont? Creează unul
-          </Link>
-        ) : (
-          <Link href="/login?mode=login" style={{ fontSize: 13 }}>
-            Ai deja cont? Login
-          </Link>
-        )}
-      </div>
+    return (
+        <main style={{ maxWidth: 520, margin: "0 auto", padding: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <h1 style={{ fontSize: 22, fontWeight: 900 }}>
+                    {mode === "login" ? "Login" : "Register"}
+                </h1>
+                <Link href="/" style={{ fontSize: 13 }}>
+                    ← Acasă
+                </Link>
+            </div>
 
-      <form onSubmit={onSubmit} style={{ marginTop: 20, display: "grid", gap: 12 }}>
-        {mode === "register" && (
-          <>
-            <input
-              style={inputStyle}
-              placeholder="Nume"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-            />
-            <input
-              style={inputStyle}
-              placeholder="Prenume"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-            />
-            <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 14 }}>
-              <input
-                type="checkbox"
-                checked={hasAmatur}
-                onChange={(e) => setHasAmatur(e.target.checked)}
-              />
-              Am cont Amatur
-            </label>
-            {hasAmatur && (
-              <input
-                style={inputStyle}
-                placeholder="MP Amatur"
-                value={amaturMp}
-                onChange={(e) => setAmaturMp(e.target.value)}
-              />
-            )}
-          </>
-        )}
+            <div style={{ marginTop: 12 }}>
+                {mode === "login" ? (
+                    <Link href="/login?mode=register" style={{ fontSize: 13 }}>
+                        Nu ai cont? Creează unul
+                    </Link>
+                ) : (
+                    <Link href="/login?mode=login" style={{ fontSize: 13 }}>
+                        Ai deja cont? Login
+                    </Link>
+                )}
+            </div>
 
-        <input
-          style={inputStyle}
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <input
-          style={inputStyle}
-          placeholder="Parolă"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+            <form onSubmit={onSubmit} style={{ marginTop: 20, display: "grid", gap: 12 }}>
+                {mode === "register" && (
+                    <>
+                        <input
+                            style={inputStyle}
+                            placeholder="Nume"
+                            value={lastName}
+                            onChange={(e) => setLastName(e.target.value)}
+                        />
+                        <input
+                            style={inputStyle}
+                            placeholder="Prenume"
+                            value={firstName}
+                            onChange={(e) => setFirstName(e.target.value)}
+                        />
+                        <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 14 }}>
+                            <input
+                                type="checkbox"
+                                checked={hasAmatur}
+                                onChange={(e) => setHasAmatur(e.target.checked)}
+                            />
+                            Am cont Amatur
+                        </label>
+                        {hasAmatur && (
+                            <input
+                                style={inputStyle}
+                                placeholder="MP Amatur"
+                                value={amaturMp}
+                                onChange={(e) => setAmaturMp(e.target.value)}
+                            />
+                        )}
+                    </>
+                )}
 
-        {mode === "login" && (
-          <div style={{ textAlign: "right", marginTop: -6 }}>
-            <Link href="/forgot-password" style={{ fontSize: 13, opacity: 0.9 }}>
-              Ai uitat parola?
-            </Link>
-          </div>
-        )}
+                <input
+                    style={inputStyle}
+                    placeholder="Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                />
+                <input
+                    style={inputStyle}
+                    placeholder="Parolă"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                />
 
-        <button style={{ ...buttonStyle, opacity: busy ? 0.6 : 1 }} disabled={busy}>
-          {mode === "login" ? "Login" : "Creează cont"}
-        </button>
-      </form>
+                {mode === "login" && (
+                    <div style={{ textAlign: "right", marginTop: -6 }}>
+                        <Link href="/forgot-password" style={{ fontSize: 13, opacity: 0.9 }}>
+                            Ai uitat parola?
+                        </Link>
+                    </div>
+                )}
 
-      {msg && <p style={{ marginTop: 14 }}>{msg}</p>}
-    </main>
-  );
+                <button
+                    onMouseEnter={() => setBtnHover(true)}
+                    onMouseLeave={() => setBtnHover(false)}
+                    style={{
+                        ...buttonStyle,
+                        opacity: busy ? 0.6 : 1,
+                        background: btnHover ? "#f1f5f9" : "#fff",
+                        transform: btnHover ? "translateY(-1px)" : "translateY(0px)",
+                        boxShadow: btnHover ? "0 6px 16px rgba(0,0,0,0.10)" : "none",
+                    }}
+                    disabled={busy}
+                >
+                    {mode === "login" ? "Login" : "Creează cont"}
+                </button>
+            </form>
+
+            {msg && <p style={{ marginTop: 14 }}>{msg}</p>}
+        </main>
+    );
 }
