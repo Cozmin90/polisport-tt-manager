@@ -296,6 +296,7 @@ export default function AccountPage() {
           )`
                 )
                 .eq("player_id", pid)
+                .is("withdrawn_at", null)
                 .order("id", { ascending: false });
 
             if (!mounted) return;
@@ -527,7 +528,7 @@ export default function AccountPage() {
                         sau RLS blochează citirea.
                     </div>
                 ) : (
-                    <div style={{ display: "flex", gap: 16, alignItems: "stretch", flexWrap: "wrap",  }}>
+                    <div style={{ display: "flex", gap: 16, alignItems: "stretch", flexWrap: "wrap", }}>
                         <div style={{ flex: "1 1 520px" }}>
                             <div style={{ display: "grid", gap: 10 }}>
                                 <Row label="Nume" value={name} />
