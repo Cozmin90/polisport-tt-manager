@@ -425,7 +425,7 @@ export default function HomePage() {
         Math.floor((nowTs - APP_START) / (1000 * 60 * 60 * 24)) + 1
     );
 
-    const IBAN = "RO77 REVO 0000 1310 3910";
+    const IBAN = "RO77 REVO 0000 1310 3910 2276";
 
     return (
         <main className="min-h-screen" style={{ background: "var(--ps-bg)" }}>
