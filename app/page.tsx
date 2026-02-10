@@ -601,7 +601,7 @@ export default function HomePage() {
                                         <div className="mt-3 text-base font-extrabold" style={{ color: "var(--ps-muted)" }}>
                                             Cont IBAN:
                                             <br />
-                                            <span style={{ color: "var(--ps-text)" }}>{IBAN}</span>
+                                            <span style={{ color: "var(--ps-text)", fontSize: "12px" }}>{IBAN}</span>
                                         </div>
                                     </div>
 
