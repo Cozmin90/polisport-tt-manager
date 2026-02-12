@@ -322,6 +322,7 @@ export default function HomePage() {
             player_id: userId,
             status: "REGISTERED",
             registered_at: new Date().toISOString(),
+            mp_before: (hasAmatur && userAmaturMp != null ? userAmaturMp : (Number.isFinite(userMpMax) ? userMpMax : userMp)) ?? 2,
         } as any);
 
         if (error) {
