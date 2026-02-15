@@ -7,7 +7,7 @@ import { supabase } from "../../../../lib/supabaseClient";
 
 type TournamentFormat = "LOWER_UPPER_KO" | "GROUPS_KO";
 
-// Categoria jucătorului (din MP Max)
+// Categoria jucătorului (din MP Max,)
 type PlayerCat = "HOBBY" | "ADVANCED" | "ELITE";
 function playerCategoryFromMpMax(mpMax: number): PlayerCat {
     if (mpMax < 20) return "HOBBY";
