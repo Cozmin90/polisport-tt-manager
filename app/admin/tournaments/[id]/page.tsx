@@ -1688,7 +1688,7 @@ export default function AdminTournamentPage() {
         // Calcul MP Turneu:
         // - sector = blocuri de 4 în clasamentul final (1-4, 5-8, ...)
         // - mpSector = media MP la înscriere a celor din bloc (MP din lista de înscriere)
-        // - bonus: #1 +6, #2 +4, #3/#4 +2
+        // - bonus: #1 +6, #2 +4, #3/#4 +3 #5/#8 +2 #9/#12 +1
         // - mpTournament = mpSector + bonus
         // MP sector pe blocuri de 4 din LISTA DE ÎNSCRIERE (nu din clasamentul final)
         const regSorted = [...activeParticipants].sort((a, b) => {
@@ -1718,7 +1718,7 @@ export default function AdminTournamentPage() {
             for (let j = 0; j < block.length; j++) {
                 const pos = i + j + 1;
 
-                const podiumBonus = pos === 1 ? 6 : pos === 2 ? 4 : pos === 3 ? 2 : (hasKO && pos === 4 ? 2 : 0);
+                const podiumBonus = pos === 1 ? 6 : pos === 2 ? 4 : pos === 3 || pos === 4 ? 3 : 0;
 
                 // Bonusuri suplimentare (motivare): locurile 5–8 (+2), locurile 9–12 (+1)
                 const bandBonus = pos >= 5 && pos <= 8 ? 2 : pos >= 9 && pos <= 12 ? 1 : 0;
@@ -1860,30 +1860,30 @@ export default function AdminTournamentPage() {
 
     return (
         <main className="min-h-screen">
-        <div className="mx-auto max-w-6xl px-4 py-6">
-            {/* Top bar – Rankedin style */}
-            <div className="ps-card mb-6 px-5 py-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-3">
-                        <Link href="/" className="ps-btn ps-btn-outline text-sm">Înapoi</Link>
-                        <div>
-                            <div className="text-xl font-extrabold leading-tight">Administrare turneu</div>
-                            <div className="text-sm" style={{ color: "var(--ps-muted)" }}>
-                                Gestionează înscrieri, grupe, KO și clasamentul final
+            <div className="mx-auto max-w-6xl px-4 py-6">
+                {/* Top bar – Rankedin style */}
+                <div className="ps-card mb-6 px-5 py-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-3">
+                            <Link href="/" className="ps-btn ps-btn-outline text-sm">Înapoi</Link>
+                            <div>
+                                <div className="text-xl font-extrabold leading-tight">Administrare turneu</div>
+                                <div className="text-sm" style={{ color: "var(--ps-muted)" }}>
+                                    Gestionează înscrieri, grupe, KO și clasamentul final
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className="px-3 py-1 rounded-full text-xs font-extrabold"
+                                style={{ border: "1px solid var(--ps-border)", color: "var(--ps-primary)", background: "rgba(47,63,115,0.06)" }}>
+                                Admin
                             </div>
                         </div>
                     </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                        <div className="px-3 py-1 rounded-full text-xs font-extrabold"
-                             style={{ border: "1px solid var(--ps-border)", color: "var(--ps-primary)", background: "rgba(47,63,115,0.06)" }}>
-                            Admin
-                        </div>
-                    </div>
                 </div>
-            </div>
 
-            <style jsx global>{`
+                <style jsx global>{`
                 @media print {
                     .no-print {
                         display: none !important;
@@ -1905,536 +1905,366 @@ export default function AdminTournamentPage() {
                 }
             `}</style>
 
-            {/* PRINT-ONLY (foi pentru mese) */}
-            <div className="print-only">
-                {printTarget ? (
-                    (() => {
-                        const lowerSheets = () => {
-                            const pick = (gid: string) => {
-                                const g = groupsLower.find((x) => x.id === gid);
-                                if (!g) return null;
-                                const ms = matchesLower
-                                    .filter((m) => m.group_id === gid && m.player1_id && m.player2_id)
-                                    .sort((a, b) => (a.round ?? 1) - (b.round ?? 1))
-                                    .map((m) => ({ p1: m.p1?.full_name ?? "—", p2: m.p2?.full_name ?? "—" }));
-                                return <PrintGroupSheet key={gid} groupName={g.name} matches={ms} />;
+                {/* PRINT-ONLY (foi pentru mese) */}
+                <div className="print-only">
+                    {printTarget ? (
+                        (() => {
+                            const lowerSheets = () => {
+                                const pick = (gid: string) => {
+                                    const g = groupsLower.find((x) => x.id === gid);
+                                    if (!g) return null;
+                                    const ms = matchesLower
+                                        .filter((m) => m.group_id === gid && m.player1_id && m.player2_id)
+                                        .sort((a, b) => (a.round ?? 1) - (b.round ?? 1))
+                                        .map((m) => ({ p1: m.p1?.full_name ?? "—", p2: m.p2?.full_name ?? "—" }));
+                                    return <PrintGroupSheet key={gid} groupName={g.name} matches={ms} />;
+                                };
+                                if (printTarget.kind === "LOWER_ONE") return pick(printTarget.groupId);
+                                return groupsLower.map((g) => pick(g.id));
                             };
-                            if (printTarget.kind === "LOWER_ONE") return pick(printTarget.groupId);
-                            return groupsLower.map((g) => pick(g.id));
-                        };
 
-                        const upperSheets = () => {
-                            const pick = (gid: string) => {
-                                const g = groupsUpper.find((x) => x.id === gid);
-                                if (!g) return null;
-                                const ms = matchesUpper
-                                    .filter((m) => m.group_id === gid && m.player1_id && m.player2_id)
-                                    .sort((a, b) => (a.round ?? 1) - (b.round ?? 1))
-                                    .map((m) => ({ p1: m.p1?.full_name ?? "—", p2: m.p2?.full_name ?? "—" }));
-                                return <PrintGroupSheet key={gid} groupName={g.name} matches={ms} />;
+                            const upperSheets = () => {
+                                const pick = (gid: string) => {
+                                    const g = groupsUpper.find((x) => x.id === gid);
+                                    if (!g) return null;
+                                    const ms = matchesUpper
+                                        .filter((m) => m.group_id === gid && m.player1_id && m.player2_id)
+                                        .sort((a, b) => (a.round ?? 1) - (b.round ?? 1))
+                                        .map((m) => ({ p1: m.p1?.full_name ?? "—", p2: m.p2?.full_name ?? "—" }));
+                                    return <PrintGroupSheet key={gid} groupName={g.name} matches={ms} />;
+                                };
+                                if (printTarget.kind === "UPPER_ONE") return pick(printTarget.groupId);
+                                return groupsUpper.map((g) => pick(g.id));
                             };
-                            if (printTarget.kind === "UPPER_ONE") return pick(printTarget.groupId);
-                            return groupsUpper.map((g) => pick(g.id));
-                        };
 
-                        const koSheets = () => {
-                            const totalPlayers = nextPow2((matchesKO.filter((m) => (m.round ?? 1) === 1).length || 1) * 2);
-                            const renderRound = (r: number) => {
-                                const ms = (matchesKOByRound.map[r] ?? [])
-                                    .filter((m) => m.player1_id && m.player2_id)
-                                    .map((m) => ({ p1: m.p1?.full_name ?? "—", p2: m.p2?.full_name ?? "—" }));
-                                return <PrintKORoundSheet key={r} roundName={roundLabel(r, totalPlayers)} matches={ms} />;
+                            const koSheets = () => {
+                                const totalPlayers = nextPow2((matchesKO.filter((m) => (m.round ?? 1) === 1).length || 1) * 2);
+                                const renderRound = (r: number) => {
+                                    const ms = (matchesKOByRound.map[r] ?? [])
+                                        .filter((m) => m.player1_id && m.player2_id)
+                                        .map((m) => ({ p1: m.p1?.full_name ?? "—", p2: m.p2?.full_name ?? "—" }));
+                                    return <PrintKORoundSheet key={r} roundName={roundLabel(r, totalPlayers)} matches={ms} />;
+                                };
+                                if (printTarget.kind === "KO_ROUND") return renderRound(printTarget.round);
+                                return matchesKOByRound.rounds.map((r) => renderRound(r));
                             };
-                            if (printTarget.kind === "KO_ROUND") return renderRound(printTarget.round);
-                            return matchesKOByRound.rounds.map((r) => renderRound(r));
-                        };
 
-                        if (printTarget.kind === "LOWER_ALL" || printTarget.kind === "LOWER_ONE") return lowerSheets();
-                        if (printTarget.kind === "UPPER_ALL" || printTarget.kind === "UPPER_ONE") return upperSheets();
-                        if (printTarget.kind === "KO_ALL" || printTarget.kind === "KO_ROUND") return koSheets();
-                        return null;
-                    })()
-                ) : null}
-            </div>
+                            if (printTarget.kind === "LOWER_ALL" || printTarget.kind === "LOWER_ONE") return lowerSheets();
+                            if (printTarget.kind === "UPPER_ALL" || printTarget.kind === "UPPER_ONE") return upperSheets();
+                            if (printTarget.kind === "KO_ALL" || printTarget.kind === "KO_ROUND") return koSheets();
+                            return null;
+                        })()
+                    ) : null}
+                </div>
 
-            <div className="no-print">
+                <div className="no-print">
                     <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, }}>
-                    <div>
-                        <h1 style={{ fontSize: 22, fontWeight: 800 }}>{title || "Turneu"}</h1>
-                        <div style={{ opacity: 0.8, fontSize: 13,}}>
-                            Format: {format === "LOWER_UPPER_KO" ? "Inferioare → Superioare → KO" : "Grupe → KO direct"}{forceGroupsKo ? " (fallback: Grupe → KO direct pentru 3–9 jucători)" : ""} • Grupe: {groupsLower.length} • Superioare:{" "}
-                            {groupsUpper.length} • KO: {matchesKO.length} meciuri
+                        <div>
+                            <h1 style={{ fontSize: 22, fontWeight: 800 }}>{title || "Turneu"}</h1>
+                            <div style={{ opacity: 0.8, fontSize: 13, }}>
+                                Format: {format === "LOWER_UPPER_KO" ? "Inferioare → Superioare → KO" : "Grupe → KO direct"}{forceGroupsKo ? " (fallback: Grupe → KO direct pentru 3–9 jucători)" : ""} • Grupe: {groupsLower.length} • Superioare:{" "}
+                                {groupsUpper.length} • KO: {matchesKO.length} meciuri
+                            </div>
                         </div>
-                    </div>   
-                </header>
+                    </header>
 
-                {/* CONTROALE (secondary) */}
-                <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
-                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                        <div style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                            <span style={{ fontSize: 12, opacity: 0.75 }}>Status turneu:</span>
+                    {/* CONTROALE (secondary) */}
+                    <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                            <div style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                                <span style={{ fontSize: 12, opacity: 0.75 }}>Status turneu:</span>
 
-                            <select value={tournamentStatus} onChange={(e) => setTournamentStatusSafe(e.target.value as any)} style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid #ddd", color: "#111" }}>
-                                <option value="UPCOMING">Urmează</option>
-                                <option value="LIVE">În desfășurare</option>
-                                <option value="FINISHED">Finalizat</option>
-                                <option value="CANCELLED">Anulat</option>
-                            </select>
-                        </div>
+                                <select value={tournamentStatus} onChange={(e) => setTournamentStatusSafe(e.target.value as any)} style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid #ddd", color: "#111" }}>
+                                    <option value="UPCOMING">Urmează</option>
+                                    <option value="LIVE">În desfășurare</option>
+                                    <option value="FINISHED">Finalizat</option>
+                                    <option value="CANCELLED">Anulat</option>
+                                </select>
+                            </div>
 
-                        <div style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                            <span style={{ fontSize: 12, opacity: 0.75 }}>Înscrieri:</span>
-                            <b>{registrationOpen ? "DESCHISE" : "ÎNCHISE"}</b>
-                            {registrationOpen ? (
-                                <button onClick={closeRegistrations} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}>
-                                    Închide înscrieri
-                                </button>
-                            ) : (
-                                <button onClick={openRegistrations} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}>
-                                    Redeschide înscrieri
-                                </button>
-                            )}
-                        </div>
-
-                        <span style={{ flex: 1 }} />
-
-                        <button onClick={() => setShowResetOptions((v) => !v)} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd", opacity: 0.9 }}>
-                            {showResetOptions ? "Ascunde reset (teste)" : "Arată reset (teste)"}
-                        </button>
-                    </div>
-
-                    {showResetOptions && (
-                        <div style={{ marginTop: 12, border: "1px solid #f2c2c2", background: "#fff5f5", borderRadius: 12, padding: 12 }}>
-                            <div style={{ fontWeight: 900, color: "#a40000" }}>⚠ Opțiuni RESET (doar teste/dev)</div>
-                            <div style={{ fontSize: 12, opacity: 0.85, marginTop: 6 }}>Protecție: confirm + cod tastat. Atenție, șterge date!</div>
-
-                            <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                                <button onClick={resetKOOnce} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #a40000", background: "white", color: "#a40000", fontWeight: 900 }}>
-                                    Reset KO
-                                </button>
-
-                                {!isGroupsKo && (
-                                    <button onClick={resetUpperOnce} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #a40000", background: "white", color: "#a40000", fontWeight: 900 }}>
-                                        Reset Superioare
+                            <div style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                                <span style={{ fontSize: 12, opacity: 0.75 }}>Înscrieri:</span>
+                                <b>{registrationOpen ? "DESCHISE" : "ÎNCHISE"}</b>
+                                {registrationOpen ? (
+                                    <button onClick={closeRegistrations} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}>
+                                        Închide înscrieri
+                                    </button>
+                                ) : (
+                                    <button onClick={openRegistrations} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}>
+                                        Redeschide înscrieri
                                     </button>
                                 )}
-
-                                <button onClick={resetLowerOnce} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #a40000", background: "white", color: "#a40000", fontWeight: 900 }}>
-                                    Reset {isGroupsKo ? "Grupe" : "Inferioare"}
-                                </button>
-
-                                <button onClick={resetAllTournamentDataOnce} style={{ padding: "8px 12px", borderRadius: 10, border: "2px solid #a40000", background: "#a40000", color: "white", fontWeight: 900 }}>
-                                    RESET TOTAL
-                                </button>
                             </div>
-                        </div>
-                    )}
-                </section>
 
+                            <span style={{ flex: 1 }} />
 
-
-                {/* ✅ PARTICIPANȚI + LOCURI LIBERE */}
-                    <section style={{ marginTop: 14, border: "2px solid #eee", borderRadius: 12, padding: 12, background: "white", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
-                        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Participanți</h2>
-
-                        <div style={{ fontSize: 13, opacity: 0.85 }}>
-                            Înscriși: <b>{registeredCount}</b>
-                            {typeof maxPlayers === "number" ? (
-                                <>
-                                    {" "}
-                                    / <b>{maxPlayers}</b> · Locuri libere: <b>{spotsLeft ?? 0}</b>
-                                </>
-                            ) : (
-                                <>
-                                    {" "}
-                                    · Locuri libere: <b>—</b>
-                                </>
-                            )}
-                        </div>
-                    </div>
-
-                    {participants.length === 0 ? (
-                        <div style={{ marginTop: 10, opacity: 0.8 }}>Încă nu există participanți înscriși.</div>
-                    ) : (
-                        <div style={{ overflowX: "auto", marginTop: 10 }}>
-                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, }}>
-                                <thead>
-                                    <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
-                                        <th style={{ padding: "8px 6px", width: 44 }}>#</th>
-                                        <th style={{ padding: "8px 6px", width: 120 }}>Nume Prenume</th>
-                                        <th style={{ padding: "8px 6px", width: 120 }}>Categorie</th>
-                                        <th style={{ padding: "8px 6px", width: 180 }}>Absență</th>
-                                        <th style={{ padding: "8px 6px", width: 90, textAlign: "right" }}>MP</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {participants.map((p, idx) => (
-                                        <tr key={p.id} style={{ borderBottom: "1px solid #f3f3f3" }}>
-                                            <td style={{ padding: "8px 6px" }}>{idx + 1}</td>
-                                            <td style={{ padding: "8px 6px", fontWeight: 900 }}>{p.name}</td>
-                                            <td style={{ padding: "8px 6px" }}>{catLabel(p.category)}</td>
-                                            <td style={{ padding: "8px 6px" }}>
-                                                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                                                    <button
-                                                        onClick={() => markAbsence(p.id, "AM")}
-                                                        title="Absență motivată (fără penalizare)"
-                                                        style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #ddd", fontWeight: 1000, fontSize: 12 }}
-                                                    >
-                                                        AM
-                                                    </button>
-                                                    <button
-                                                        onClick={() => markAbsence(p.id, "AN")}
-                                                        title="Absență nemotivată (+2 puncte penalizare)"
-                                                        style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #ddd", fontWeight: 1000, fontSize: 12 }}
-                                                    >
-                                                        AN
-                                                    </button>
-
-                                                    {p.absence ? (
-                                                        <>
-                                                            <span style={{ fontSize: 12, opacity: 0.85 }}>
-                                                                Marcat: <b>{p.absence}</b>
-                                                            </span>
-                                                            <button
-                                                                onClick={() => clearAbsence(p.id)}
-                                                                title="Demarchează absența (revine la neconfirmat)"
-                                                                style={{
-                                                                    padding: "6px 10px",
-                                                                    borderRadius: 10,
-                                                                    border: "1px solid #ddd",
-                                                                    fontWeight: 900,
-                                                                    fontSize: 12,
-                                                                    opacity: 0.9,
-                                                                }}
-                                                            >
-                                                                ↩
-                                                            </button>
-                                                        </>
-                                                    ) : (
-                                                        <span style={{ fontSize: 12, opacity: 0.65 }}>—</span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td style={{ padding: "8px 6px", textAlign: "right" }}>{p.mp}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-
-                            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>Sortare: descrescător după MP (la egalitate, alfabetic).</div>
-                        </div>
-                    )}
-                </section>
-
-                {/* ✅ CTA: 1-click */}
-                <section style={{ marginTop: 12,}}>
-                    <button
-                        onClick={generateLowerGroupsAndMatches}
-                        disabled={participants.length < 3 || groupsLower.length > 0 || matchesLower.length > 0}
-                        style={{
-                            width: "100%",
-                            padding: "14px 16px",
-                            borderRadius: 12,
-                            border: "0px solid #ddd",
-                            boxShadow: "0 3px 6px rgba(0,0,0,0.4)",
-                            fontWeight: 1000,
-                            fontSize: 14,
-                            cursor: participants.length < 3 || groupsLower.length > 0 || matchesLower.length > 0 ? "not-allowed" : "pointer",
-                            opacity: participants.length < 3 || groupsLower.length > 0 || matchesLower.length > 0 ? 0.6 : 1,
-                            color: "#111",
-                            background: "white",
-                        }}
-                    >
-                        GENEREAZĂ GRUPE ȘI MECIURI (GRUPE)
-                    </button>
-
-                    <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
-                        Reguli: grupe de 4–6 când se poate; altfel „Liga (fiecare cu fiecare)”. Distribuire echilibrată (seeding după MP).
-                    </div>
-                </section>
-
-
-
-                {/* GRUPE (LOWER_GROUP) */}
-                    <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12, background: "white",boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-                        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>{isGroupsKo ? "Grupe" : "Grupe inferioare"}</h2>
-
-                        {groupsLower.length > 0 && matchesLower.length > 0 ? (
-                            <button
-                                onClick={() => doPrint({ kind: "LOWER_ALL" })}
-                                style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd", fontWeight: 900 }}
-                            >
-                                🖨️ Print toate grupele
+                            <button onClick={() => setShowResetOptions((v) => !v)} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd", opacity: 0.9 }}>
+                                {showResetOptions ? "Ascunde reset (teste)" : "Arată reset (teste)"}
                             </button>
-                        ) : null}
-                    </div>
+                        </div>
 
-                    <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
-                        {groupsLower.length === 0 ? (
-                            <div style={{ opacity: 0.8 }}>{isGroupsKo ? "Nu există grupe încă." : "Nu există grupe inferioare încă."}</div>
-                        ) : (
-                            groupsLower.map((g) => {
-                                const groupMatches = matchesLower
-                                    .filter((m) => m.group_id === g.id)
-                                    .sort((a, b) => (a.round ?? 1) - (b.round ?? 1));
+                        {showResetOptions && (
+                            <div style={{ marginTop: 12, border: "1px solid #f2c2c2", background: "#fff5f5", borderRadius: 12, padding: 12 }}>
+                                <div style={{ fontWeight: 900, color: "#a40000" }}>⚠ Opțiuni RESET (doar teste/dev)</div>
+                                <div style={{ fontSize: 12, opacity: 0.85, marginTop: 6 }}>Protecție: confirm + cod tastat. Atenție, șterge date!</div>
 
-                                const maxRound = groupMatches.reduce((acc, m) => Math.max(acc, m.round ?? 1), 1);
-
-                                return (
-                                    <div key={g.id} className="ps-card p-4">
-                                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
-                                            <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
-                                                <div style={{ fontWeight: 900, fontSize: 15 }}>{g.name}</div>
-                                                {groupMatches.length > 0 ? (
-                                                    <button
-                                                        onClick={() => doPrint({ kind: "LOWER_ONE", groupId: g.id })}
-                                                        style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #ddd", fontSize: 12, fontWeight: 900 }}
-                                                    >
-                                                        🖨️ Print foaie
-                                                    </button>
-                                                ) : null}
-                                                <button
-                                                    onClick={() => recomputeAndPersistGroupStandings("LOWER_GROUP", g.id, matchesLower)}
-                                                    style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #ddd", fontSize: 12 }}
-                                                    disabled={groupMatches.length === 0}
-                                                    title="Recalculează clasamentul doar pentru această grupă"
-                                                >
-                                                    Recalculează grupa
-                                                </button>
-                                            </div>
-                                            <div style={{ fontSize: 12, opacity: 0.75 }}>
-                                                Calificați: <b>Top 4</b> · Runde: <b>{maxRound}</b>
-                                            </div>
-                                        </div>
-
-                                        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10, fontSize: 13 }}>
-                                            <thead>
-                                                <tr>
-                                                    <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>#</th>
-                                                    <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>Jucător</th>
-                                                    <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>W</th>
-                                                    <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>L</th>
-                                                    <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>Seturi</th>
-                                                    <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>Dif</th>
-                                                    <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>"Top 4"</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {[...g.members]
-                                                    .sort((a, b) => (a.rank_in_group ?? 999) - (b.rank_in_group ?? 999))
-                                                    .map((m) => {
-                                                        const dif = (m.points_for ?? 0) - (m.points_against ?? 0);
-                                                        const q = (m.rank_in_group ?? 999) <= 4;
-                                                        return (
-                                                            <tr key={m.player_id} style={undefined}>
-                                                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{m.rank_in_group ?? "—"}</td>
-                                                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", fontWeight: 800 }}>{m.full_name}</td>
-                                                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>{m.wins}</td>
-                                                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>{m.losses}</td>
-                                                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>
-                                                                    {m.points_for}-{m.points_against}
-                                                                </td>
-                                                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>{dif}</td>
-                                                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{q ? "✅" : ""}</td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                            </tbody>
-                                        </table>
-
-                                        <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
-                                            Tie-break: Victorii → Mini-clasament meciuri directe (2+) → Setaveraj overall → Seturi overall
-                                        </div>
-
-                                        {/* Meciuri - în interiorul grupei */}
-                                        {groupMatches.length > 0 && (
-                                            <div style={{ marginTop: 12 }}>
-                                                <div style={{ fontWeight: 900, marginBottom: 8 }}>Meciuri (ordine pe runde)</div>
-
-                                                {Array.from({ length: maxRound }, (_, i) => i + 1).map((r) => {
-                                                    const roundMatches = groupMatches.filter((m) => (m.round ?? 1) === r);
-                                                    return (
-                                                        <div key={r} style={{ marginTop: 10 }}>
-                                                            <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 900 }}>Runda {r}</div>
-                                                            <div style={{ display: "grid", gap: 8, marginTop: 6, gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", justifyItems: "stretch", width: "100%", justifyContent: "stretch" }}>
-                                                                {roundMatches.map((m) => (
-                                                                    <div key={m.id} className="ps-card p-4">
-                                                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-                                                                            <div style={{ fontSize: 14 }}>
-                                                                                <b>{m.p1?.full_name ?? "P1"}</b> vs <b>{m.p2?.full_name ?? (m.player2_id ? "P2" : "BYE")}</b>
-
-                                                                            </div>
-
-                                                                            {m.player1_id && (
-                                                                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                                                                    {m.player2_id ? (
-                                                                                        <>
-                                                                                            <input
-                                                                                                type="number"
-                                                                                                inputMode="numeric"
-                                                                                                min={0}
-                                                                                                value={getDraftAB(m.id, m.score).a}
-                                                                                                onChange={(e) => setDraftA(m.id, e.target.value)}
-                                                                                                placeholder="0"
-                                                                                                style={{ padding: "6px 6px", borderRadius: 8, border: "1px solid #ddd", width: 44, textAlign: "center" }}
-                                                                                            />
-                                                                                            <span style={{ opacity: 0.7 }}>-</span>
-                                                                                            <input
-                                                                                                type="number"
-                                                                                                inputMode="numeric"
-                                                                                                min={0}
-                                                                                                value={getDraftAB(m.id, m.score).b}
-                                                                                                onChange={(e) => setDraftB(m.id, e.target.value)}
-                                                                                                placeholder="0"
-                                                                                                style={{ padding: "6px 6px", borderRadius: 8, border: "1px solid #ddd", width: 44, textAlign: "center" }}
-                                                                                            />
-                                                                                        </>
-                                                                                    ) : (
-                                                                                        <span style={{ fontSize: 12, opacity: 0.8 }}>BYE</span>
-                                                                                    )}
-
-                                                                                    <button onClick={() => saveScoreFromDraft(m)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd" }}>
-                                                                                        Save
-                                                                                    </button>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })
-                        )}
-                    </div>
-                </section>
-
-                {/* SUPERIOARE (doar pentru LOWER_UPPER_KO) */}
-                {!isGroupsKo && (
-                        <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12,background: "white", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-                            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Grupe superioare</h2>
-
-                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                                {groupsUpper.length > 0 && matchesUpper.length > 0 ? (
-                                    <button onClick={() => doPrint({ kind: "UPPER_ALL" })} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd", fontWeight: 900 }}>
-                                        🖨️ Print toate superioarele
+                                <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                                    <button onClick={resetKOOnce} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #a40000", background: "white", color: "#a40000", fontWeight: 900 }}>
+                                        Reset KO
                                     </button>
-                                ) : null}
-                                <button onClick={generateUpperGroupsFromLowerTop4} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}>
-                                    Generează Grupe Superioare (Top 4)
-                                </button>
 
-                                <button onClick={() => generateGroupMatchesWithRounds("UPPER_GROUP", groupsUpper, matchesUpper.length)} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}>
-                                    Generează meciuri (superioare)
-                                </button>
+                                    {!isGroupsKo && (
+                                        <button onClick={resetUpperOnce} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #a40000", background: "white", color: "#a40000", fontWeight: 900 }}>
+                                            Reset Superioare
+                                        </button>
+                                    )}
 
-                                <button onClick={() => computeStandingsForStage("UPPER_GROUP", groupsUpper, matchesUpper)} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}>
-                                    Calculează clasament (superioare)
-                                </button>
+                                    <button onClick={resetLowerOnce} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #a40000", background: "white", color: "#a40000", fontWeight: 900 }}>
+                                        Reset {isGroupsKo ? "Grupe" : "Inferioare"}
+                                    </button>
+
+                                    <button onClick={resetAllTournamentDataOnce} style={{ padding: "8px 12px", borderRadius: 10, border: "2px solid #a40000", background: "#a40000", color: "white", fontWeight: 900 }}>
+                                        RESET TOTAL
+                                    </button>
+                                </div>
                             </div>
+                        )}
+                    </section>
+
+
+
+                    {/* ✅ PARTICIPANȚI + LOCURI LIBERE */}
+                    <section style={{ marginTop: 14, border: "2px solid #eee", borderRadius: 12, padding: 12, background: "white", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
+                            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Participanți</h2>
+
+                            <div style={{ fontSize: 13, opacity: 0.85 }}>
+                                Înscriși: <b>{registeredCount}</b>
+                                {typeof maxPlayers === "number" ? (
+                                    <>
+                                        {" "}
+                                        / <b>{maxPlayers}</b> · Locuri libere: <b>{spotsLeft ?? 0}</b>
+                                    </>
+                                ) : (
+                                    <>
+                                        {" "}
+                                        · Locuri libere: <b>—</b>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {participants.length === 0 ? (
+                            <div style={{ marginTop: 10, opacity: 0.8 }}>Încă nu există participanți înscriși.</div>
+                        ) : (
+                            <div style={{ overflowX: "auto", marginTop: 10 }}>
+                                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, }}>
+                                    <thead>
+                                        <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
+                                            <th style={{ padding: "8px 6px", width: 44 }}>#</th>
+                                            <th style={{ padding: "8px 6px", width: 120 }}>Nume Prenume</th>
+                                            <th style={{ padding: "8px 6px", width: 120 }}>Categorie</th>
+                                            <th style={{ padding: "8px 6px", width: 180 }}>Absență</th>
+                                            <th style={{ padding: "8px 6px", width: 90, textAlign: "right" }}>MP</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {participants.map((p, idx) => (
+                                            <tr key={p.id} style={{ borderBottom: "1px solid #f3f3f3" }}>
+                                                <td style={{ padding: "8px 6px" }}>{idx + 1}</td>
+                                                <td style={{ padding: "8px 6px", fontWeight: 900 }}>{p.name}</td>
+                                                <td style={{ padding: "8px 6px" }}>{catLabel(p.category)}</td>
+                                                <td style={{ padding: "8px 6px" }}>
+                                                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                                                        <button
+                                                            onClick={() => markAbsence(p.id, "AM")}
+                                                            title="Absență motivată (fără penalizare)"
+                                                            style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #ddd", fontWeight: 1000, fontSize: 12 }}
+                                                        >
+                                                            AM
+                                                        </button>
+                                                        <button
+                                                            onClick={() => markAbsence(p.id, "AN")}
+                                                            title="Absență nemotivată (+2 puncte penalizare)"
+                                                            style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #ddd", fontWeight: 1000, fontSize: 12 }}
+                                                        >
+                                                            AN
+                                                        </button>
+
+                                                        {p.absence ? (
+                                                            <>
+                                                                <span style={{ fontSize: 12, opacity: 0.85 }}>
+                                                                    Marcat: <b>{p.absence}</b>
+                                                                </span>
+                                                                <button
+                                                                    onClick={() => clearAbsence(p.id)}
+                                                                    title="Demarchează absența (revine la neconfirmat)"
+                                                                    style={{
+                                                                        padding: "6px 10px",
+                                                                        borderRadius: 10,
+                                                                        border: "1px solid #ddd",
+                                                                        fontWeight: 900,
+                                                                        fontSize: 12,
+                                                                        opacity: 0.9,
+                                                                    }}
+                                                                >
+                                                                    ↩
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <span style={{ fontSize: 12, opacity: 0.65 }}>—</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding: "8px 6px", textAlign: "right" }}>{p.mp}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+
+                                <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>Sortare: descrescător după MP (la egalitate, alfabetic).</div>
+                            </div>
+                        )}
+                    </section>
+
+                    {/* ✅ CTA: 1-click */}
+                    <section style={{ marginTop: 12, }}>
+                        <button
+                            onClick={generateLowerGroupsAndMatches}
+                            disabled={participants.length < 3 || groupsLower.length > 0 || matchesLower.length > 0}
+                            style={{
+                                width: "100%",
+                                padding: "14px 16px",
+                                borderRadius: 12,
+                                border: "0px solid #ddd",
+                                boxShadow: "0 3px 6px rgba(0,0,0,0.4)",
+                                fontWeight: 1000,
+                                fontSize: 14,
+                                cursor: participants.length < 3 || groupsLower.length > 0 || matchesLower.length > 0 ? "not-allowed" : "pointer",
+                                opacity: participants.length < 3 || groupsLower.length > 0 || matchesLower.length > 0 ? 0.6 : 1,
+                                color: "#111",
+                                background: "white",
+                            }}
+                        >
+                            GENEREAZĂ GRUPE ȘI MECIURI (GRUPE)
+                        </button>
+
+                        <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
+                            Reguli: grupe de 4–6 când se poate; altfel „Liga (fiecare cu fiecare)”. Distribuire echilibrată (seeding după MP).
+                        </div>
+                    </section>
+
+
+
+                    {/* GRUPE (LOWER_GROUP) */}
+                    <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12, background: "white", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>{isGroupsKo ? "Grupe" : "Grupe inferioare"}</h2>
+
+                            {groupsLower.length > 0 && matchesLower.length > 0 ? (
+                                <button
+                                    onClick={() => doPrint({ kind: "LOWER_ALL" })}
+                                    style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd", fontWeight: 900 }}
+                                >
+                                    🖨️ Print toate grupele
+                                </button>
+                            ) : null}
                         </div>
 
                         <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
-                            {groupsUpper.length === 0 ? (
-                                <div style={{ opacity: 0.8 }}>Nu există grupe superioare încă.</div>
+                            {groupsLower.length === 0 ? (
+                                <div style={{ opacity: 0.8 }}>{isGroupsKo ? "Nu există grupe încă." : "Nu există grupe inferioare încă."}</div>
                             ) : (
-                                groupsUpper.map((g) => (
-                                    <div key={g.id} className="ps-card p-4">
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-                                            <div style={{ fontWeight: 900 }}>{g.name}</div>
-                                            {matchesUpper.some((m) => m.group_id === g.id && m.player1_id && m.player2_id) ? (
-                                                <button onClick={() => doPrint({ kind: "UPPER_ONE", groupId: g.id })} style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #ddd", fontSize: 12, fontWeight: 900 }}>
-                                                    🖨️ Print foaie
-                                                </button>
-                                            ) : null}
-                                        </div>
-                                        {upperHasStandings && (
-                                            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.75 }}>
-                                                Calificați: <b>Top 2</b>
+                                groupsLower.map((g) => {
+                                    const groupMatches = matchesLower
+                                        .filter((m) => m.group_id === g.id)
+                                        .sort((a, b) => (a.round ?? 1) - (b.round ?? 1));
+
+                                    const maxRound = groupMatches.reduce((acc, m) => Math.max(acc, m.round ?? 1), 1);
+
+                                    return (
+                                        <div key={g.id} className="ps-card p-4">
+                                            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+                                                <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+                                                    <div style={{ fontWeight: 900, fontSize: 15 }}>{g.name}</div>
+                                                    {groupMatches.length > 0 ? (
+                                                        <button
+                                                            onClick={() => doPrint({ kind: "LOWER_ONE", groupId: g.id })}
+                                                            style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #ddd", fontSize: 12, fontWeight: 900 }}
+                                                        >
+                                                            🖨️ Print foaie
+                                                        </button>
+                                                    ) : null}
+                                                    <button
+                                                        onClick={() => recomputeAndPersistGroupStandings("LOWER_GROUP", g.id, matchesLower)}
+                                                        style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #ddd", fontSize: 12 }}
+                                                        disabled={groupMatches.length === 0}
+                                                        title="Recalculează clasamentul doar pentru această grupă"
+                                                    >
+                                                        Recalculează grupa
+                                                    </button>
+                                                </div>
+                                                <div style={{ fontSize: 12, opacity: 0.75 }}>
+                                                    Calificați: <b>Top 4</b> · Runde: <b>{maxRound}</b>
+                                                </div>
                                             </div>
-                                        )}
 
-                                        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8, fontSize: 13 }}>
-                                            <thead>
-                                                <tr>
-                                                    <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>#</th>
-                                                    <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>Jucător</th>
-                                                    <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>W</th>
-                                                    <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>L</th>
-                                                    <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>Seturi</th>
-                                                    <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>Dif</th>
-                                                    <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>Top 2</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {[...g.members]
-                                                    .sort((a, b) => (a.rank_in_group ?? 999) - (b.rank_in_group ?? 999))
-                                                    .map((m) => {
-                                                        const dif = (m.points_for ?? 0) - (m.points_against ?? 0);
-                                                        const q = (m.rank_in_group ?? 999) <= 2;
-                                                        return (
-                                                            <tr key={m.player_id} style={undefined}>
-                                                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{m.rank_in_group ?? "—"}</td>
-                                                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{m.full_name}</td>
-                                                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>{m.wins}</td>
-                                                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>{m.losses}</td>
-                                                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>
-                                                                    {m.points_for}-{m.points_against}
-                                                                </td>
-                                                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>{dif}</td>
-                                                                <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{q ? "✅" : ""}</td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                            </tbody>
-                                        </table>
+                                            <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10, fontSize: 13 }}>
+                                                <thead>
+                                                    <tr>
+                                                        <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>#</th>
+                                                        <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>Jucător</th>
+                                                        <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>W</th>
+                                                        <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>L</th>
+                                                        <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>Seturi</th>
+                                                        <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>Dif</th>
+                                                        <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>"Top 4"</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {[...g.members]
+                                                        .sort((a, b) => (a.rank_in_group ?? 999) - (b.rank_in_group ?? 999))
+                                                        .map((m) => {
+                                                            const dif = (m.points_for ?? 0) - (m.points_against ?? 0);
+                                                            const q = (m.rank_in_group ?? 999) <= 4;
+                                                            return (
+                                                                <tr key={m.player_id} style={undefined}>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{m.rank_in_group ?? "—"}</td>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", fontWeight: 800 }}>{m.full_name}</td>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>{m.wins}</td>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>{m.losses}</td>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>
+                                                                        {m.points_for}-{m.points_against}
+                                                                    </td>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>{dif}</td>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{q ? "✅" : ""}</td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                </tbody>
+                                            </table>
 
-                                        {/* Meciuri - în interiorul grupei (superioare) */}
-                                        {(() => {
-                                            const groupMatches = matchesUpper
-                                                .filter((m) => m.group_id === g.id)
-                                                .sort((a, b) => (a.round ?? 1) - (b.round ?? 1));
+                                            <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
+                                                Tie-break: Victorii → Mini-clasament meciuri directe (2+) → Setaveraj overall → Seturi overall
+                                            </div>
 
-                                            const maxRound = groupMatches.reduce((acc, m) => Math.max(acc, m.round ?? 1), 1);
-
-                                            if (groupMatches.length === 0) return null;
-
-                                            return (
+                                            {/* Meciuri - în interiorul grupei */}
+                                            {groupMatches.length > 0 && (
                                                 <div style={{ marginTop: 12 }}>
                                                     <div style={{ fontWeight: 900, marginBottom: 8 }}>Meciuri (ordine pe runde)</div>
 
                                                     {Array.from({ length: maxRound }, (_, i) => i + 1).map((r) => {
                                                         const roundMatches = groupMatches.filter((m) => (m.round ?? 1) === r);
-
                                                         return (
                                                             <div key={r} style={{ marginTop: 10 }}>
                                                                 <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 900 }}>Runda {r}</div>
-
-                                                                <div
-                                                                    style={{
-                                                                        display: "grid",
-                                                                        gap: 8,
-                                                                        marginTop: 6,
-                                                                        gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-                                                                        justifyItems: "stretch",
-                                                                        width: "100%",
-                                                                        justifyContent: "stretch",
-                                                                    }}
-                                                                >
+                                                                <div style={{ display: "grid", gap: 8, marginTop: 6, gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", justifyItems: "stretch", width: "100%", justifyContent: "stretch" }}>
                                                                     {roundMatches.map((m) => (
                                                                         <div key={m.id} className="ps-card p-4">
                                                                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                                                                                 <div style={{ fontSize: 14 }}>
-                                                                                    <b>{m.p1?.full_name ?? "P1"}</b> vs{" "}
-                                                                                    <b>{m.p2?.full_name ?? (m.player2_id ? "P2" : "BYE")}</b>
+                                                                                    <b>{m.p1?.full_name ?? "P1"}</b> vs <b>{m.p2?.full_name ?? (m.player2_id ? "P2" : "BYE")}</b>
+
                                                                                 </div>
 
                                                                                 {m.player1_id && (
@@ -2447,8 +2277,8 @@ export default function AdminTournamentPage() {
                                                                                                     min={0}
                                                                                                     value={getDraftAB(m.id, m.score).a}
                                                                                                     onChange={(e) => setDraftA(m.id, e.target.value)}
-                                                                                                    placeholder="3"
-                                                                                                    style={{ padding: 8, border: "1px solid #ddd", width: 44, textAlign: "center", borderRadius: 8 }}
+                                                                                                    placeholder="0"
+                                                                                                    style={{ padding: "6px 6px", borderRadius: 8, border: "1px solid #ddd", width: 44, textAlign: "center" }}
                                                                                                 />
                                                                                                 <span style={{ opacity: 0.7 }}>-</span>
                                                                                                 <input
@@ -2457,18 +2287,15 @@ export default function AdminTournamentPage() {
                                                                                                     min={0}
                                                                                                     value={getDraftAB(m.id, m.score).b}
                                                                                                     onChange={(e) => setDraftB(m.id, e.target.value)}
-                                                                                                    placeholder="1"
-                                                                                                    style={{ padding: 8, border: "1px solid #ddd", width: 44, textAlign: "center", borderRadius: 8 }}
+                                                                                                    placeholder="0"
+                                                                                                    style={{ padding: "6px 6px", borderRadius: 8, border: "1px solid #ddd", width: 44, textAlign: "center" }}
                                                                                                 />
                                                                                             </>
                                                                                         ) : (
                                                                                             <span style={{ fontSize: 12, opacity: 0.8 }}>BYE</span>
                                                                                         )}
 
-                                                                                        <button
-                                                                                            onClick={() => saveScoreFromDraft(m)}
-                                                                                            style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd" }}
-                                                                                        >
+                                                                                        <button onClick={() => saveScoreFromDraft(m)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd" }}>
                                                                                             Save
                                                                                         </button>
                                                                                     </div>
@@ -2481,239 +2308,412 @@ export default function AdminTournamentPage() {
                                                         );
                                                     })}
                                                 </div>
-                                            );
-                                        })()}
-                                    </div>
-                                ))
+                                            )}
+                                        </div>
+                                    );
+                                })
                             )}
                         </div>
                     </section>
-                )}
 
-                {/* KO */}
-                    <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12, background:"white", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
-                        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Tablou eliminatoriu (KO)</h2>
+                    {/* SUPERIOARE (doar pentru LOWER_UPPER_KO) */}
+                    {!isGroupsKo && (
+                        <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12, background: "white", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
+                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+                                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Grupe superioare</h2>
 
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                            {matchesKO.length > 0 ? (
-                                <button onClick={() => doPrint({ kind: "KO_ALL" })} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd", fontWeight: 900 }}>
-                                    🖨️ Print KO (tot ce există)
-                                </button>
-                            ) : null}
-                            <button onClick={generateKORound1} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}>
-                                {isGroupsKo ? "Generează Tablou KO (Top 4 grupe)" : "Generează Tablou KO (Top 2 superioare)"}
-                            </button>
-
-                            <button onClick={advanceKONextRound} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}>
-                                Avansează KO (runda următoare)
-                            </button>
-                        </div>
-                    </div>
-
-                    {matchesKO.length === 0 ? (
-                        <div style={{ marginTop: 10, opacity: 0.8 }}>Nu există KO încă. (Generează KO după clasament: {isGroupsKo ? "Top 4 din grupe" : "Top 2 din superioare"})</div>
-                    ) : (
-                        <div style={{ marginTop: 10 }}>
-                            {matchesKOByRound.rounds.map((r) => (
-                                <div key={r} style={{ marginTop: 10 }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
-                                        <div style={{ fontWeight: 900 }}>{roundLabel(r, nextPow2((matchesKO.filter((m) => (m.round ?? 1) === 1).length || 1) * 2))}</div>
-                                        <button onClick={() => doPrint({ kind: "KO_ROUND", round: r })} style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #ddd", fontSize: 12, fontWeight: 900 }}>
-                                            🖨️ Print rundă
+                                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                                    {groupsUpper.length > 0 && matchesUpper.length > 0 ? (
+                                        <button onClick={() => doPrint({ kind: "UPPER_ALL" })} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd", fontWeight: 900 }}>
+                                            🖨️ Print toate superioarele
                                         </button>
-                                    </div>
+                                    ) : null}
+                                    <button onClick={generateUpperGroupsFromLowerTop4} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}>
+                                        Generează Grupe Superioare (Top 4)
+                                    </button>
 
-                                    <div style={{ display: "grid", gap: 8, gridTemplateColumns: `repeat(${(r === maxKORound && (matchesKOByRound.map[r]?.length ?? 0) === 1) ? 1 : 2}, minmax(320px, 1fr))`, justifyItems: r === maxKORound ? "center" : "stretch" }}>
-                                        {matchesKOByRound.map[r].map((m) => (
-                                            <div key={m.id} style={{ border: "1px solid #eee", borderRadius: 10, padding: 10, width: r === maxKORound ? "min(520px, 100%)" : "100%" }}>
-                                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-                                                    <div style={{ fontSize: 14 }}>
-                                                        <b>{m.p1?.full_name ?? "—"}</b> <span style={{ opacity: 0.8 }}>vs</span>{" "}
-                                                        <b>{m.p2?.full_name ?? (m.player2_id ? "—" : "BYE")}</b>
+                                    <button onClick={() => generateGroupMatchesWithRounds("UPPER_GROUP", groupsUpper, matchesUpper.length)} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}>
+                                        Generează meciuri (superioare)
+                                    </button>
 
-                                                        {m.winner_id ? <span style={{ marginLeft: 10, opacity: 0.85 }}>✅</span> : null}
-                                                    </div>
+                                    <button onClick={() => computeStandingsForStage("UPPER_GROUP", groupsUpper, matchesUpper)} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}>
+                                        Calculează clasament (superioare)
+                                    </button>
+                                </div>
+                            </div>
 
-                                                    {m.player1_id && (
-                                                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                                            {m.player2_id ? (
-                                                                <>
-                                                                    <input
-                                                                        type="number"
-                                                                        inputMode="numeric"
-                                                                        min={0}
-                                                                        value={getDraftAB(m.id, m.score).a}
-                                                                        onChange={(e) => setDraftA(m.id, e.target.value)}
-                                                                        placeholder="3"
-                                                                        style={{ padding: "6px 6px", borderRadius: 8, border: "1px solid #ddd", width: 44, textAlign: "center" }}
-                                                                    />
-                                                                    <span style={{ opacity: 0.7 }}>-</span>
-                                                                    <input
-                                                                        type="number"
-                                                                        inputMode="numeric"
-                                                                        min={0}
-                                                                        value={getDraftAB(m.id, m.score).b}
-                                                                        onChange={(e) => setDraftB(m.id, e.target.value)}
-                                                                        placeholder="1"
-                                                                        style={{ padding: "6px 6px", borderRadius: 8, border: "1px solid #ddd", width: 44, textAlign: "center" }}
-                                                                    />
-                                                                </>
-                                                            ) : (
-                                                                <span style={{ fontSize: 12, opacity: 0.8 }}>BYE</span>
-                                                            )}
-
-                                                            <button onClick={() => saveScoreFromDraft(m)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd" }}>
-                                                                Save
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
+                            <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+                                {groupsUpper.length === 0 ? (
+                                    <div style={{ opacity: 0.8 }}>Nu există grupe superioare încă.</div>
+                                ) : (
+                                    groupsUpper.map((g) => (
+                                        <div key={g.id} className="ps-card p-4">
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                                                <div style={{ fontWeight: 900 }}>{g.name}</div>
+                                                {matchesUpper.some((m) => m.group_id === g.id && m.player1_id && m.player2_id) ? (
+                                                    <button onClick={() => doPrint({ kind: "UPPER_ONE", groupId: g.id })} style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #ddd", fontSize: 12, fontWeight: 900 }}>
+                                                        🖨️ Print foaie
+                                                    </button>
+                                                ) : null}
                                             </div>
-                                        ))}
-                                    </div>
+                                            {upperHasStandings && (
+                                                <div style={{ marginTop: 8, fontSize: 12, opacity: 0.75 }}>
+                                                    Calificați: <b>Top 2</b>
+                                                </div>
+                                            )}
 
-                                    {r === matchesKOByRound.rounds[matchesKOByRound.rounds.length - 1] && champion && !showFinalRanking ? (
-                                        <div style={{ marginTop: 12 }}>
-                                            <button style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}
-                                                onClick={() => {
-                                                    localStorage.setItem(
-                                                        `showRanking_${tournamentId}`,
-                                                        "true"
-                                                    );
-                                                    setShowFinalRanking(true);
-                                                }}
-                                            >
-                                                Generează clasament final
+                                            <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8, fontSize: 13 }}>
+                                                <thead>
+                                                    <tr>
+                                                        <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>#</th>
+                                                        <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>Jucător</th>
+                                                        <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>W</th>
+                                                        <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>L</th>
+                                                        <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>Seturi</th>
+                                                        <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>Dif</th>
+                                                        <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>Top 2</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {[...g.members]
+                                                        .sort((a, b) => (a.rank_in_group ?? 999) - (b.rank_in_group ?? 999))
+                                                        .map((m) => {
+                                                            const dif = (m.points_for ?? 0) - (m.points_against ?? 0);
+                                                            const q = (m.rank_in_group ?? 999) <= 2;
+                                                            return (
+                                                                <tr key={m.player_id} style={undefined}>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{m.rank_in_group ?? "—"}</td>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{m.full_name}</td>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>{m.wins}</td>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>{m.losses}</td>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>
+                                                                        {m.points_for}-{m.points_against}
+                                                                    </td>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>{dif}</td>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{q ? "✅" : ""}</td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                </tbody>
+                                            </table>
+
+                                            {/* Meciuri - în interiorul grupei (superioare) */}
+                                            {(() => {
+                                                const groupMatches = matchesUpper
+                                                    .filter((m) => m.group_id === g.id)
+                                                    .sort((a, b) => (a.round ?? 1) - (b.round ?? 1));
+
+                                                const maxRound = groupMatches.reduce((acc, m) => Math.max(acc, m.round ?? 1), 1);
+
+                                                if (groupMatches.length === 0) return null;
+
+                                                return (
+                                                    <div style={{ marginTop: 12 }}>
+                                                        <div style={{ fontWeight: 900, marginBottom: 8 }}>Meciuri (ordine pe runde)</div>
+
+                                                        {Array.from({ length: maxRound }, (_, i) => i + 1).map((r) => {
+                                                            const roundMatches = groupMatches.filter((m) => (m.round ?? 1) === r);
+
+                                                            return (
+                                                                <div key={r} style={{ marginTop: 10 }}>
+                                                                    <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 900 }}>Runda {r}</div>
+
+                                                                    <div
+                                                                        style={{
+                                                                            display: "grid",
+                                                                            gap: 8,
+                                                                            marginTop: 6,
+                                                                            gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                                                                            justifyItems: "stretch",
+                                                                            width: "100%",
+                                                                            justifyContent: "stretch",
+                                                                        }}
+                                                                    >
+                                                                        {roundMatches.map((m) => (
+                                                                            <div key={m.id} className="ps-card p-4">
+                                                                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                                                                                    <div style={{ fontSize: 14 }}>
+                                                                                        <b>{m.p1?.full_name ?? "P1"}</b> vs{" "}
+                                                                                        <b>{m.p2?.full_name ?? (m.player2_id ? "P2" : "BYE")}</b>
+                                                                                    </div>
+
+                                                                                    {m.player1_id && (
+                                                                                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                                                                            {m.player2_id ? (
+                                                                                                <>
+                                                                                                    <input
+                                                                                                        type="number"
+                                                                                                        inputMode="numeric"
+                                                                                                        min={0}
+                                                                                                        value={getDraftAB(m.id, m.score).a}
+                                                                                                        onChange={(e) => setDraftA(m.id, e.target.value)}
+                                                                                                        placeholder="0"
+                                                                                                        style={{ padding: 8, border: "1px solid #ddd", width: 44, textAlign: "center", borderRadius: 8 }}
+                                                                                                    />
+                                                                                                    <span style={{ opacity: 0.7 }}>-</span>
+                                                                                                    <input
+                                                                                                        type="number"
+                                                                                                        inputMode="numeric"
+                                                                                                        min={0}
+                                                                                                        value={getDraftAB(m.id, m.score).b}
+                                                                                                        onChange={(e) => setDraftB(m.id, e.target.value)}
+                                                                                                        placeholder="0"
+                                                                                                        style={{ padding: 8, border: "1px solid #ddd", width: 44, textAlign: "center", borderRadius: 8 }}
+                                                                                                    />
+                                                                                                </>
+                                                                                            ) : (
+                                                                                                <span style={{ fontSize: 12, opacity: 0.8 }}>BYE</span>
+                                                                                            )}
+
+                                                                                            <button
+                                                                                                onClick={() => saveScoreFromDraft(m)}
+                                                                                                style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd" }}
+                                                                                            >
+                                                                                                Save
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </section>
+                    )}
+
+                    {/* KO */}
+                    <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12, background: "white", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+                            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Tablou eliminatoriu (KO)</h2>
+
+                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                                {matchesKO.length > 0 ? (
+                                    <button onClick={() => doPrint({ kind: "KO_ALL" })} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd", fontWeight: 900 }}>
+                                        🖨️ Print KO (tot ce există)
+                                    </button>
+                                ) : null}
+                                <button onClick={generateKORound1} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}>
+                                    {isGroupsKo ? "Generează Tablou KO (Top 4 grupe)" : "Generează Tablou KO (Top 2 superioare)"}
+                                </button>
+
+                                <button onClick={advanceKONextRound} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}>
+                                    Avansează KO (runda următoare)
+                                </button>
+                            </div>
+                        </div>
+
+                        {matchesKO.length === 0 ? (
+                            <div style={{ marginTop: 10, opacity: 0.8 }}>Nu există KO încă. (Generează KO după clasament: {isGroupsKo ? "Top 4 din grupe" : "Top 2 din superioare"})</div>
+                        ) : (
+                            <div style={{ marginTop: 10 }}>
+                                {matchesKOByRound.rounds.map((r) => (
+                                    <div key={r} style={{ marginTop: 10 }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+                                            <div style={{ fontWeight: 900 }}>{roundLabel(r, nextPow2((matchesKO.filter((m) => (m.round ?? 1) === 1).length || 1) * 2))}</div>
+                                            <button onClick={() => doPrint({ kind: "KO_ROUND", round: r })} style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #ddd", fontSize: 12, fontWeight: 900 }}>
+                                                🖨️ Print rundă
                                             </button>
                                         </div>
-                                    ) : null}
 
-                                </div>
-                            ))}
+                                        <div style={{ display: "grid", gap: 8, gridTemplateColumns: `repeat(${(r === maxKORound && (matchesKOByRound.map[r]?.length ?? 0) === 1) ? 1 : 2}, minmax(320px, 1fr))`, justifyItems: r === maxKORound ? "center" : "stretch" }}>
+                                            {matchesKOByRound.map[r].map((m) => (
+                                                <div key={m.id} style={{ border: "1px solid #eee", borderRadius: 10, padding: 10, width: r === maxKORound ? "min(520px, 100%)" : "100%" }}>
+                                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                                                        <div style={{ fontSize: 14 }}>
+                                                            <b>{m.p1?.full_name ?? "—"}</b> <span style={{ opacity: 0.8 }}>vs</span>{" "}
+                                                            <b>{m.p2?.full_name ?? (m.player2_id ? "—" : "BYE")}</b>
 
-                            <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75 }}>Folosește <b>Avansează KO</b> după ce ai completat toți câștigătorii rundei curente.</div>
-                        </div>
-                    )}
-                </section>
+                                                            {m.winner_id ? <span style={{ marginLeft: 10, opacity: 0.85 }}>✅</span> : null}
+                                                        </div>
 
+                                                        {m.player1_id && (
+                                                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                                                {m.player2_id ? (
+                                                                    <>
+                                                                        <input
+                                                                            type="number"
+                                                                            inputMode="numeric"
+                                                                            min={0}
+                                                                            value={getDraftAB(m.id, m.score).a}
+                                                                            onChange={(e) => setDraftA(m.id, e.target.value)}
+                                                                            placeholder="0"
+                                                                            style={{ padding: "6px 6px", borderRadius: 8, border: "1px solid #ddd", width: 44, textAlign: "center" }}
+                                                                        />
+                                                                        <span style={{ opacity: 0.7 }}>-</span>
+                                                                        <input
+                                                                            type="number"
+                                                                            inputMode="numeric"
+                                                                            min={0}
+                                                                            value={getDraftAB(m.id, m.score).b}
+                                                                            onChange={(e) => setDraftB(m.id, e.target.value)}
+                                                                            placeholder="0"
+                                                                            style={{ padding: "6px 6px", borderRadius: 8, border: "1px solid #ddd", width: 44, textAlign: "center" }}
+                                                                        />
+                                                                    </>
+                                                                ) : (
+                                                                    <span style={{ fontSize: 12, opacity: 0.8 }}>BYE</span>
+                                                                )}
 
-                {/* CLASAMENT TOTAL */}
-                {showFinalRanking && champion ? (
-                        <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12, background: "white", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
-                        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Clasament total (toți înscrișii)</h2>
-                        <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                            <button
-                                onClick={persistFinalPlacesToRegistrations}
-                                disabled={savingPlaces || !!placesSavedAtRaw}
-                                style={{
-                                    padding: "8px 12px",
-                                    borderRadius: 10,
-                                    border: "1px solid #ddd",
-                                    fontWeight: 900,
-                                    cursor: savingPlaces ? "not-allowed" : "pointer",
-                                    opacity: savingPlaces ? 0.6 : 1,
-                                }}
-                                title="Scrie în registrations.final_place și registrations.mp_turneu, apoi recalculează players.mp ca medie a ultimelor 4 turnee."
-                            >
-                                {savingPlaces ? "Se salvează..." : placesSavedAtRaw ? "Locuri deja salvate" : "Salvează locurile în DB"}
-                            </button>
-
-                            {placesSavedAt ? (
-                                <span style={{ fontSize: 12, opacity: 0.75 }}>
-                                    Salvat la: <b>{placesSavedAt}</b>
-                                </span>
-                            ) : null}
-                        </div>
-
-                        {overallRanking.length === 0 ? (
-                            <div style={{ marginTop: 10, opacity: 0.8 }}>Nu există participanți.</div>
-                        ) : (
-                            <div style={{ overflowX: "auto", marginTop: 10 }}>
-                                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-                                    <thead>
-                                        <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
-                                            <th style={{ padding: "8px 6px", width: 60 }}>Loc</th>
-                                            <th style={{ padding: "8px 6px", width: 200 }}>Jucător</th>
-                                            <th style={{ padding: "8px 6px", width: 60 }}>KO</th>
-                                            <th style={{ padding: "8px 6px", width: 60 }}>Categoria</th>
-                                            <th style={{ padding: "8px 6px", width: 110, textAlign: "center" }}>Victorii gr. inf.</th>
-                                            <th style={{ padding: "8px 6px", width: 110, textAlign: "center" }}>Victorii gr. sup.</th>
-                                            <th style={{ padding: "8px 6px", width: 80, textAlign: "center" }}>KO W</th>
-                                            <th style={{ padding: "8px 6px", width: 90, textAlign: "center" }}>Total W</th>
-                                            <th style={{ padding: "8px 6px", width: 120, textAlign: "center" }}>Setaveraj grupe</th>
-                                            <th style={{ padding: "8px 6px", width: 140, textAlign: "right" }}>MP Turneu (bonus inclus)</th>
-                                        </tr>
-                                    </thead>
-
-                                    <tbody>
-                                        {overallRanking.map((p, idx) => {
-                                            const placeLabel = p.finalPlace === 1 ? "🥇" : p.finalPlace === 2 ? "🥈" : p.finalPlace === 3 ? "🥉" : "";
-
-                                            const koLabel =
-                                                p.finalPlace === 1
-                                                    ? "Campion"
-                                                    : p.finalPlace === 2
-                                                        ? "Finalist"
-                                                        : p.finalPlace === 3
-                                                            ? "Semifinale"
-                                                            : p.koRound
-                                                                ? `Runda ${p.koRound}`
-                                                                : "—";
-
-                                            const totalWins = (p.winsLower ?? 0) + (p.winsUpper ?? 0) + (p.koWins ?? 0);
-                                            const setDiff = (p.pfLower - p.paLower) + (p.pfUpper - p.paUpper);
-
-                                            return (
-                                                <tr key={p.id} style={{ borderBottom: "1px solid #f3f3f3" }}>
-                                                    <td style={{ padding: "8px 6px" }}>
-                                                        <b>{idx + 1}</b> {placeLabel}
-                                                    </td>
-
-                                                    <td style={{ padding: "8px 6px", fontWeight: 900 }}>
-                                                        {p.name}
-                                                    </td>
-
-                                                    <td style={{ padding: "8px 6px" }}>{koLabel}</td>
-
-                                                    <td style={{ padding: "8px 6px" }}>
-                                                        {catShort(p.cat)}, MP:{Number.isFinite(p.mpReg) ? Math.round(p.mpReg * 100) / 100 : "—"}
-                                                    </td>
-
-                                                    <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.winsLower ?? 0}</td>
-                                                    <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.winsUpper ?? 0}</td>
-                                                    <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.koWins ?? 0}</td>
-                                                    <td style={{ padding: "8px 6px", textAlign: "center", fontWeight: 700 }}>{totalWins}</td>
-                                                    <td style={{ padding: "8px 6px", textAlign: "center" }}>{setDiff}</td>
-                                                    <td style={{ padding: "8px 6px", textAlign: "right" }}>
-                                                        {totalWins === 0 ? (
-                                                            <span style={{ fontSize: 12, fontWeight: 900, opacity: 100 }}>ZV</span>
-                                                        ) : p.mpTournament == null ? (
-                                                            "—"
-                                                        ) : (
-                                                            <span>
-                                                                {(Math.round(p.mpTournament * 100) / 100).toString()}
-                                                                {p.mpBonus > 0 ? (
-                                                                    <span style={{ marginLeft: 6, fontSize: 12, opacity: 0.9 }}>(+{p.mpBonus})</span>
-                                                                ) : null}
-                                                            </span>
+                                                                <button onClick={() => saveScoreFromDraft(m)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd" }}>
+                                                                    Save
+                                                                </button>
+                                                            </div>
                                                         )}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
 
-                                <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
-                                    Notă: ZV = zero victorii în turneu. Sortare: Podium → total victorii (grupe + KO) → setaveraj grupe → MP (la înscriere) → alfabetic.
-                                </div>
+                                        {r === matchesKOByRound.rounds[matchesKOByRound.rounds.length - 1] && champion && !showFinalRanking ? (
+                                            <div style={{ marginTop: 12 }}>
+                                                <button style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}
+                                                    onClick={() => {
+                                                        localStorage.setItem(
+                                                            `showRanking_${tournamentId}`,
+                                                            "true"
+                                                        );
+                                                        setShowFinalRanking(true);
+                                                    }}
+                                                >
+                                                    Generează clasament final
+                                                </button>
+                                            </div>
+                                        ) : null}
+
+                                    </div>
+                                ))}
+
+                                <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75 }}>Folosește <b>Avansează KO</b> după ce ai completat toți câștigătorii rundei curente.</div>
                             </div>
                         )}
                     </section>
-                ) : null}
-            </div>
+
+
+                    {/* CLASAMENT TOTAL */}
+                    {showFinalRanking && champion ? (
+                        <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12, background: "white", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
+                            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Clasament total (toți înscrișii)</h2>
+                            <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                                <button
+                                    onClick={persistFinalPlacesToRegistrations}
+                                    disabled={savingPlaces || !!placesSavedAtRaw}
+                                    style={{
+                                        padding: "8px 12px",
+                                        borderRadius: 10,
+                                        border: "1px solid #ddd",
+                                        fontWeight: 900,
+                                        cursor: savingPlaces ? "not-allowed" : "pointer",
+                                        opacity: savingPlaces ? 0.6 : 1,
+                                    }}
+                                    title="Scrie în registrations.final_place și registrations.mp_turneu, apoi recalculează players.mp ca medie a ultimelor 4 turnee."
+                                >
+                                    {savingPlaces ? "Se salvează..." : placesSavedAtRaw ? "Locuri deja salvate" : "Salvează locurile în DB"}
+                                </button>
+
+                                {placesSavedAt ? (
+                                    <span style={{ fontSize: 12, opacity: 0.75 }}>
+                                        Salvat la: <b>{placesSavedAt}</b>
+                                    </span>
+                                ) : null}
+                            </div>
+
+                            {overallRanking.length === 0 ? (
+                                <div style={{ marginTop: 10, opacity: 0.8 }}>Nu există participanți.</div>
+                            ) : (
+                                <div style={{ overflowX: "auto", marginTop: 10 }}>
+                                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                                        <thead>
+                                            <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
+                                                <th style={{ padding: "8px 6px", width: 60 }}>Loc</th>
+                                                <th style={{ padding: "8px 6px", width: 200 }}>Jucător</th>
+                                                <th style={{ padding: "8px 6px", width: 60 }}>KO</th>
+                                                <th style={{ padding: "8px 6px", width: 60 }}>Categoria</th>
+                                                <th style={{ padding: "8px 6px", width: 110, textAlign: "center" }}>Victorii gr. inf.</th>
+                                                <th style={{ padding: "8px 6px", width: 110, textAlign: "center" }}>Victorii gr. sup.</th>
+                                                <th style={{ padding: "8px 6px", width: 80, textAlign: "center" }}>KO W</th>
+                                                <th style={{ padding: "8px 6px", width: 90, textAlign: "center" }}>Total W</th>
+                                                <th style={{ padding: "8px 6px", width: 120, textAlign: "center" }}>Setaveraj grupe</th>
+                                                <th style={{ padding: "8px 6px", width: 140, textAlign: "right" }}>MP Turneu (bonus inclus)</th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody>
+                                            {overallRanking.map((p, idx) => {
+                                                const placeLabel = p.finalPlace === 1 ? "🥇" : p.finalPlace === 2 ? "🥈" : p.finalPlace === 3 ? "🥉" : "";
+
+                                                const koLabel =
+                                                    p.finalPlace === 1
+                                                        ? "Campion"
+                                                        : p.finalPlace === 2
+                                                            ? "Finalist"
+                                                            : p.finalPlace === 3
+                                                                ? "Semifinale"
+                                                                : p.koRound
+                                                                    ? `Runda ${p.koRound}`
+                                                                    : "—";
+
+                                                const totalWins = (p.winsLower ?? 0) + (p.winsUpper ?? 0) + (p.koWins ?? 0);
+                                                const setDiff = (p.pfLower - p.paLower) + (p.pfUpper - p.paUpper);
+
+                                                return (
+                                                    <tr key={p.id} style={{ borderBottom: "1px solid #f3f3f3" }}>
+                                                        <td style={{ padding: "8px 6px" }}>
+                                                            <b>{idx + 1}</b> {placeLabel}
+                                                        </td>
+
+                                                        <td style={{ padding: "8px 6px", fontWeight: 900 }}>
+                                                            {p.name}
+                                                        </td>
+
+                                                        <td style={{ padding: "8px 6px" }}>{koLabel}</td>
+
+                                                        <td style={{ padding: "8px 6px" }}>
+                                                            {catShort(p.cat)}, MP:{Number.isFinite(p.mpReg) ? Math.round(p.mpReg * 100) / 100 : "—"}
+                                                        </td>
+
+                                                        <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.winsLower ?? 0}</td>
+                                                        <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.winsUpper ?? 0}</td>
+                                                        <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.koWins ?? 0}</td>
+                                                        <td style={{ padding: "8px 6px", textAlign: "center", fontWeight: 700 }}>{totalWins}</td>
+                                                        <td style={{ padding: "8px 6px", textAlign: "center" }}>{setDiff}</td>
+                                                        <td style={{ padding: "8px 6px", textAlign: "right" }}>
+                                                            {totalWins === 0 ? (
+                                                                <span style={{ fontSize: 12, fontWeight: 900, opacity: 100 }}>ZV</span>
+                                                            ) : p.mpTournament == null ? (
+                                                                "—"
+                                                            ) : (
+                                                                <span>
+                                                                    {(Math.round(p.mpTournament * 100) / 100).toString()}
+                                                                    {p.mpBonus > 0 ? (
+                                                                        <span style={{ marginLeft: 6, fontSize: 12, opacity: 0.9 }}>(+{p.mpBonus})</span>
+                                                                    ) : null}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+
+                                    <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
+                                        Notă: ZV = zero victorii în turneu. Sortare: Podium → total victorii (grupe + KO) → setaveraj grupe → MP (la înscriere) → alfabetic.
+                                    </div>
+                                </div>
+                            )}
+                        </section>
+                    ) : null}
                 </div>
-    </main>
+            </div>
+        </main>
     );
 }
