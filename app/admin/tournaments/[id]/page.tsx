@@ -21,7 +21,7 @@ function catLabel(c: PlayerCat) {
 }
 
 function catShort(c: PlayerCat) {
-    // H = Hobby, A = Avansați, E = Elite
+    // H = Hobby, A = Avansați, E = Elite.
     if (c === "HOBBY") return "H";
     if (c === "ADVANCED") return "A";
     return "E";
