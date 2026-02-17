@@ -21,7 +21,7 @@ function catLabel(c: PlayerCat) {
 }
 
 function catShort(c: PlayerCat) {
-    // H = Hobby, A = Avansați, E = Elite.
+    // H = Hobby, A = Avansați, E = Elite
     if (c === "HOBBY") return "H";
     if (c === "ADVANCED") return "A";
     return "E";
@@ -2447,4 +2447,274 @@ export default function AdminTournamentPage() {
                                                                                                         inputMode="numeric"
                                                                                                         min={0}
                                                                                                         value={getDraftAB(m.id, m.score).a}
-         
+                                                                                                        onChange={(e) => setDraftA(m.id, e.target.value)}
+                                                                                                        placeholder="0"
+                                                                                                        style={{ padding: 8, border: "1px solid #ddd", width: 44, textAlign: "center", borderRadius: 8 }}
+                                                                                                    />
+                                                                                                    <span style={{ opacity: 0.7 }}>-</span>
+                                                                                                    <input
+                                                                                                        type="number"
+                                                                                                        inputMode="numeric"
+                                                                                                        min={0}
+                                                                                                        value={getDraftAB(m.id, m.score).b}
+                                                                                                        onChange={(e) => setDraftB(m.id, e.target.value)}
+                                                                                                        placeholder="0"
+                                                                                                        style={{ padding: 8, border: "1px solid #ddd", width: 44, textAlign: "center", borderRadius: 8 }}
+                                                                                                    />
+                                                                                                </>
+                                                                                            ) : (
+                                                                                                <span style={{ fontSize: 12, opacity: 0.8 }}>BYE</span>
+                                                                                            )}
+
+                                                                                            <button
+                                                                                                onClick={() => saveScoreFromDraft(m)}
+                                                                                                style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd" }}
+                                                                                            >
+                                                                                                Save
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </section>
+                    )}
+
+                    {/* KO */}
+                    <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12, background: "white", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+                            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Tablou eliminatoriu (KO)</h2>
+
+                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                                {matchesKO.length > 0 ? (
+                                    <button onClick={() => doPrint({ kind: "KO_ALL" })} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd", fontWeight: 900 }}>
+                                        🖨️ Print KO (tot ce există)
+                                    </button>
+                                ) : null}
+                                <button onClick={generateKORound1} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}>
+                                    {isGroupsKo ? "Generează Tablou KO (Top 4 grupe)" : "Generează Tablou KO (Top 2 superioare)"}
+                                </button>
+
+                                <button onClick={advanceKONextRound} style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}>
+                                    Avansează KO (runda următoare)
+                                </button>
+                            </div>
+                        </div>
+
+                        {matchesKO.length === 0 ? (
+                            <div style={{ marginTop: 10, opacity: 0.8 }}>Nu există KO încă. (Generează KO după clasament: {isGroupsKo ? "Top 4 din grupe" : "Top 2 din superioare"})</div>
+                        ) : (
+                            <div style={{ marginTop: 10 }}>
+                                {matchesKOByRound.rounds.map((r) => (
+                                    <div key={r} style={{ marginTop: 10 }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+                                            <div style={{ fontWeight: 900 }}>{roundLabel(r, nextPow2((matchesKO.filter((m) => (m.round ?? 1) === 1).length || 1) * 2))}</div>
+                                            <button onClick={() => doPrint({ kind: "KO_ROUND", round: r })} style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid #ddd", fontSize: 12, fontWeight: 900 }}>
+                                                🖨️ Print rundă
+                                            </button>
+                                        </div>
+
+                                        <div style={{ display: "grid", gap: 8, gridTemplateColumns: `repeat(${(r === maxKORound && (matchesKOByRound.map[r]?.length ?? 0) === 1) ? 1 : 2}, minmax(320px, 1fr))`, justifyItems: r === maxKORound ? "center" : "stretch" }}>
+                                            {matchesKOByRound.map[r].map((m) => (
+                                                <div key={m.id} style={{ border: "1px solid #eee", borderRadius: 10, padding: 10, width: r === maxKORound ? "min(520px, 100%)" : "100%" }}>
+                                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                                                        <div style={{ fontSize: 14 }}>
+                                                            <b>{m.p1?.full_name ?? "—"}</b> <span style={{ opacity: 0.8 }}>vs</span>{" "}
+                                                            <b>{m.p2?.full_name ?? (m.player2_id ? "—" : "BYE")}</b>
+
+                                                            {m.winner_id ? <span style={{ marginLeft: 10, opacity: 0.85 }}>✅</span> : null}
+                                                        </div>
+
+                                                        {m.player1_id && (
+                                                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                                                {m.player2_id ? (
+                                                                    <>
+                                                                        <input
+                                                                            type="number"
+                                                                            inputMode="numeric"
+                                                                            min={0}
+                                                                            value={getDraftAB(m.id, m.score).a}
+                                                                            onChange={(e) => setDraftA(m.id, e.target.value)}
+                                                                            placeholder="0"
+                                                                            style={{ padding: "6px 6px", borderRadius: 8, border: "1px solid #ddd", width: 44, textAlign: "center" }}
+                                                                        />
+                                                                        <span style={{ opacity: 0.7 }}>-</span>
+                                                                        <input
+                                                                            type="number"
+                                                                            inputMode="numeric"
+                                                                            min={0}
+                                                                            value={getDraftAB(m.id, m.score).b}
+                                                                            onChange={(e) => setDraftB(m.id, e.target.value)}
+                                                                            placeholder="0"
+                                                                            style={{ padding: "6px 6px", borderRadius: 8, border: "1px solid #ddd", width: 44, textAlign: "center" }}
+                                                                        />
+                                                                    </>
+                                                                ) : (
+                                                                    <span style={{ fontSize: 12, opacity: 0.8 }}>BYE</span>
+                                                                )}
+
+                                                                <button onClick={() => saveScoreFromDraft(m)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd" }}>
+                                                                    Save
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {r === matchesKOByRound.rounds[matchesKOByRound.rounds.length - 1] && champion && !showFinalRanking ? (
+                                            <div style={{ marginTop: 12 }}>
+                                                <button style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #ddd" }}
+                                                    onClick={() => {
+                                                        localStorage.setItem(
+                                                            `showRanking_${tournamentId}`,
+                                                            "true"
+                                                        );
+                                                        setShowFinalRanking(true);
+                                                    }}
+                                                >
+                                                    Generează clasament final
+                                                </button>
+                                            </div>
+                                        ) : null}
+
+                                    </div>
+                                ))}
+
+                                <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75 }}>Folosește <b>Avansează KO</b> după ce ai completat toți câștigătorii rundei curente.</div>
+                            </div>
+                        )}
+                    </section>
+
+
+                    {/* CLASAMENT TOTAL */}
+                    {showFinalRanking && champion ? (
+                        <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12, background: "white", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
+                            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Clasament total (toți înscrișii)</h2>
+                            <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                                <button
+                                    onClick={persistFinalPlacesToRegistrations}
+                                    disabled={savingPlaces || !!placesSavedAtRaw}
+                                    style={{
+                                        padding: "8px 12px",
+                                        borderRadius: 10,
+                                        border: "1px solid #ddd",
+                                        fontWeight: 900,
+                                        cursor: savingPlaces ? "not-allowed" : "pointer",
+                                        opacity: savingPlaces ? 0.6 : 1,
+                                    }}
+                                    title="Scrie în registrations.final_place și registrations.mp_turneu, apoi recalculează players.mp ca medie a ultimelor 4 turnee."
+                                >
+                                    {savingPlaces ? "Se salvează..." : placesSavedAtRaw ? "Locuri deja salvate" : "Salvează locurile în DB"}
+                                </button>
+
+                                {placesSavedAt ? (
+                                    <span style={{ fontSize: 12, opacity: 0.75 }}>
+                                        Salvat la: <b>{placesSavedAt}</b>
+                                    </span>
+                                ) : null}
+                            </div>
+
+                            {overallRanking.length === 0 ? (
+                                <div style={{ marginTop: 10, opacity: 0.8 }}>Nu există participanți.</div>
+                            ) : (
+                                <div style={{ overflowX: "auto", marginTop: 10 }}>
+                                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                                        <thead>
+                                            <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
+                                                <th style={{ padding: "8px 6px", width: 60 }}>Loc</th>
+                                                <th style={{ padding: "8px 6px", width: 200 }}>Jucător</th>
+                                                <th style={{ padding: "8px 6px", width: 60 }}>KO</th>
+                                                <th style={{ padding: "8px 6px", width: 60 }}>Categoria</th>
+                                                <th style={{ padding: "8px 6px", width: 110, textAlign: "center" }}>Victorii gr. inf.</th>
+                                                <th style={{ padding: "8px 6px", width: 110, textAlign: "center" }}>Victorii gr. sup.</th>
+                                                <th style={{ padding: "8px 6px", width: 80, textAlign: "center" }}>KO W</th>
+                                                <th style={{ padding: "8px 6px", width: 90, textAlign: "center" }}>Total W</th>
+                                                <th style={{ padding: "8px 6px", width: 120, textAlign: "center" }}>Setaveraj grupe</th>
+                                                <th style={{ padding: "8px 6px", width: 140, textAlign: "right" }}>MP Turneu (bonus inclus)</th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody>
+                                            {overallRanking.map((p, idx) => {
+                                                const placeLabel = p.finalPlace === 1 ? "🥇" : p.finalPlace === 2 ? "🥈" : p.finalPlace === 3 ? "🥉" : "";
+
+                                                const koLabel =
+                                                    p.finalPlace === 1
+                                                        ? "Campion"
+                                                        : p.finalPlace === 2
+                                                            ? "Finalist"
+                                                            : p.finalPlace === 3
+                                                                ? "Semifinale"
+                                                                : p.koRound
+                                                                    ? `Runda ${p.koRound}`
+                                                                    : "—";
+
+                                                const totalWins = (p.winsLower ?? 0) + (p.winsUpper ?? 0) + (p.koWins ?? 0);
+                                                const setDiff = (p.pfLower - p.paLower) + (p.pfUpper - p.paUpper);
+
+                                                return (
+                                                    <tr key={p.id} style={{ borderBottom: "1px solid #f3f3f3" }}>
+                                                        <td style={{ padding: "8px 6px" }}>
+                                                            <b>{idx + 1}</b> {placeLabel}
+                                                        </td>
+
+                                                        <td style={{ padding: "8px 6px", fontWeight: 900 }}>
+                                                            {p.name}
+                                                        </td>
+
+                                                        <td style={{ padding: "8px 6px" }}>{koLabel}</td>
+
+                                                        <td style={{ padding: "8px 6px" }}>
+                                                            {catShort(p.cat)}, MP:{Number.isFinite(p.mpReg) ? Math.round(p.mpReg * 100) / 100 : "—"}
+                                                        </td>
+
+                                                        <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.winsLower ?? 0}</td>
+                                                        <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.winsUpper ?? 0}</td>
+                                                        <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.koWins ?? 0}</td>
+                                                        <td style={{ padding: "8px 6px", textAlign: "center", fontWeight: 700 }}>{totalWins}</td>
+                                                        <td style={{ padding: "8px 6px", textAlign: "center" }}>{setDiff}</td>
+                                                        <td style={{ padding: "8px 6px", textAlign: "right" }}>
+                                                            {totalWins === 0 ? (
+                                                                <span style={{ fontSize: 12, fontWeight: 900, opacity: 100 }}>ZV</span>
+                                                            ) : p.mpTournament == null ? (
+                                                                "—"
+                                                            ) : (
+                                                                <span>
+                                                                    {(Math.round(p.mpTournament * 100) / 100).toString()}
+                                                                    {p.mpBonus > 0 ? (
+                                                                        <span style={{ marginLeft: 6, fontSize: 12, opacity: 0.9 }}>(+{p.mpBonus})</span>
+                                                                    ) : null}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+
+                                    <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
+                                        Notă: ZV = zero victorii în turneu. Sortare: Podium → total victorii (grupe + KO) → setaveraj grupe → MP (la înscriere) → alfabetic.
+                                    </div>
+                                </div>
+                            )}
+                        </section>
+                    ) : null}
+                </div>
+            </div>
+        </main>
+    );
+}
