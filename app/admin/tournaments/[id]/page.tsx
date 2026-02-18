@@ -7,7 +7,7 @@ import { supabase } from "../../../../lib/supabaseClient";
 
 type TournamentFormat = "LOWER_UPPER_KO" | "GROUPS_KO";
 
-// Categoria jucătorului (din MP Max,)
+// Categoria jucătorului (din MP Max)
 type PlayerCat = "HOBBY" | "ADVANCED" | "ELITE";
 function playerCategoryFromMpMax(mpMax: number): PlayerCat {
     if (mpMax < 20) return "HOBBY";
@@ -35,6 +35,10 @@ type RegistrationRow = {
     withdrawn_at: string | null;
     penalty_applied: number;
     penalty_reason: string | null;
+    // snapshot MP la înscriere + rezultate finale (salvate)
+    mp_before?: number | string | null;
+    mp_turneu?: number | string | null;
+    final_place?: number | null;
     attended?: boolean | null;
     no_show_penalty?: number | null; // penalizare no-show (AN) // prezență marcată de admin (true/false)
     players:
@@ -924,6 +928,7 @@ export default function AdminTournamentPage() {
             .select(
                 `
         player_id,status,withdrawn_at,penalty_applied,penalty_reason,present,attended,no_show_penalty,
+        mp_before,mp_turneu,final_place,
         players:player_id(full_name,display_name,first_name,last_name,mp,mp_max,amatur_mp,penalty_points,banned_until)
       `
             )
@@ -1692,7 +1697,6 @@ export default function AdminTournamentPage() {
         // - mpTournament = mpSector + bonus
         // MP sector pe blocuri de 4 din LISTA DE ÎNSCRIERE (nu din clasamentul final)
         const regSorted = [...activeParticipants].sort((a, b) => {
-            // IMPORTANT: MP sector must be computed from MP la înscriere (mpReg), not current MP (mp)
             if (b.mpReg !== a.mpReg) return b.mpReg - a.mpReg;
             return a.name.localeCompare(b.name);
         });
@@ -1719,12 +1723,13 @@ export default function AdminTournamentPage() {
             for (let j = 0; j < block.length; j++) {
                 const pos = i + j + 1;
 
-                const podiumBonus = pos === 1 ? 6 : pos === 2 ? 4 : pos === 3 || pos === 4 ? 3 : 0;
-
-                // Bonusuri suplimentare (motivare): locurile 5–8 (+2), locurile 9–12 (+1)
-                const bandBonus = pos >= 5 && pos <= 8 ? 2 : pos >= 9 && pos <= 12 ? 1 : 0;
-
-                const bonus = podiumBonus + bandBonus;
+                const bonus =
+                    pos === 1 ? 6 :
+                        pos === 2 ? 4 :
+                            (pos === 3 || pos === 4) ? 3 :
+                                (pos >= 5 && pos <= 8) ? 2 :
+                                    (pos >= 9 && pos <= 12) ? 1 :
+                                        0;
 
                 const mpTournament = mpSector + bonus;
 
@@ -1732,8 +1737,36 @@ export default function AdminTournamentPage() {
                 block[j].mpBonus = bonus;
             }
         }
+        // Dacă locurile au fost salvate în DB, înghețăm ordinea după final_place (single source of truth)
+        if (placesSavedAtRaw) {
+            const fp = new Map<string, number>();
+            for (const r of rows as any[]) {
+                const v = Number((r as any).final_place);
+                if (Number.isFinite(v) && v > 0) fp.set((r as any).player_id, v);
+            }
+            sorted.sort((a, b) => {
+                const fa = fp.get(a.id);
+                const fb = fp.get(b.id);
+                if (fa != null && fb != null) return fa - fb;
+                if (fa != null) return -1;
+                if (fb != null) return 1;
+                return a.name.localeCompare(b.name);
+            });
+
+            // dacă există mp_turneu salvat, îl folosim la afișare
+            const mt = new Map<string, number>();
+            for (const r of rows as any[]) {
+                const v = Number((r as any).mp_turneu);
+                if (Number.isFinite(v)) mt.set((r as any).player_id, v);
+            }
+            for (const p of sorted) {
+                const v = mt.get(p.id);
+                if (v != null) p.mpTournament = v;
+            }
+        }
+
         return sorted;
-    }, [activeParticipants, matchesKO, podium, groupsUpper, groupsLower]);
+    }, [activeParticipants, matchesKO, podium, groupsUpper, groupsLower, rows, placesSavedAtRaw]);
 
     // ✅ Salvează locul final în DB (registrations.final_place) + opțional etichetă KO (registrations.ko_label)
     // Necesită coloane:
@@ -2448,7 +2481,7 @@ export default function AdminTournamentPage() {
                                                                                                         min={0}
                                                                                                         value={getDraftAB(m.id, m.score).a}
                                                                                                         onChange={(e) => setDraftA(m.id, e.target.value)}
-                                                                                                        placeholder="0"
+                                                                                                        placeholder="3"
                                                                                                         style={{ padding: 8, border: "1px solid #ddd", width: 44, textAlign: "center", borderRadius: 8 }}
                                                                                                     />
                                                                                                     <span style={{ opacity: 0.7 }}>-</span>
@@ -2458,7 +2491,7 @@ export default function AdminTournamentPage() {
                                                                                                         min={0}
                                                                                                         value={getDraftAB(m.id, m.score).b}
                                                                                                         onChange={(e) => setDraftB(m.id, e.target.value)}
-                                                                                                        placeholder="0"
+                                                                                                        placeholder="1"
                                                                                                         style={{ padding: 8, border: "1px solid #ddd", width: 44, textAlign: "center", borderRadius: 8 }}
                                                                                                     />
                                                                                                 </>
@@ -2546,7 +2579,7 @@ export default function AdminTournamentPage() {
                                                                             min={0}
                                                                             value={getDraftAB(m.id, m.score).a}
                                                                             onChange={(e) => setDraftA(m.id, e.target.value)}
-                                                                            placeholder="0"
+                                                                            placeholder="3"
                                                                             style={{ padding: "6px 6px", borderRadius: 8, border: "1px solid #ddd", width: 44, textAlign: "center" }}
                                                                         />
                                                                         <span style={{ opacity: 0.7 }}>-</span>
@@ -2556,7 +2589,7 @@ export default function AdminTournamentPage() {
                                                                             min={0}
                                                                             value={getDraftAB(m.id, m.score).b}
                                                                             onChange={(e) => setDraftB(m.id, e.target.value)}
-                                                                            placeholder="0"
+                                                                            placeholder="1"
                                                                             style={{ padding: "6px 6px", borderRadius: 8, border: "1px solid #ddd", width: 44, textAlign: "center" }}
                                                                         />
                                                                     </>
