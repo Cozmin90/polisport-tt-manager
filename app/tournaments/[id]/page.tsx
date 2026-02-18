@@ -10,7 +10,7 @@ type TournamentFormat = "LOWER_UPPER_KO" | "GROUPS_KO";
 // Categoria jucătorului (din MP Max)
 type PlayerCat = "HOBBY" | "ADVANCED" | "ELITE";
 function playerCategoryFromMpMax(mpMax: number): PlayerCat {
-    // categorie bazată pe MP Max (istoric)
+    // categorie bazată pe MP Max (istoric..)
 
     if (mpMax < 20) return "HOBBY";
     if (mpMax < 40) return "ADVANCED";
