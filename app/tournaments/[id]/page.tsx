@@ -18,7 +18,7 @@ function playerCategoryFromMpMax(mpMax: number): PlayerCat {
 }
 
 function playerCategoryFromMp(mp: number): PlayerCat {
-    // categorie bazată pe MP la înscriere (snapshot)
+    // categorie bazată pe MP la înscriere (snapshot...)
     if (mp < 20) return "HOBBY";
     if (mp < 40) return "ADVANCED";
     return "ELITE";
