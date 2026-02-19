@@ -39,26 +39,48 @@ function catShort(c: PlayerCat) {
 
 
 type RegistrationRow = {
+    // din tabela registrations
+    id?: string;                // optional (dacă nu îl selectezi mereu)
+    tournament_id?: string;     // optional
+
     player_id: string;
     status: string;
     withdrawn_at: string | null;
+
     penalty_applied: number;
     penalty_reason: string | null;
+
     attended?: boolean | null;
-    no_show_penalty?: number | null; // penalizare no-show (AN) // prezență marcată de admin (true/false)
+    present?: boolean | null;          // dacă ai coloana
+    no_show_penalty?: number | null;
+
+    // ✅ snapshot & rezultate turneu (IMPORTANT pt fix-urile noastre)
+    mp_before?: number | null;
+    mp_turneu?: number | null;
+    mp_after?: number | null;
+
+    final_place?: number | null;       // ✅ FIX pt eroarea de pe Vercel
+    ko_label?: string | null;          // (dacă o folosești)
+
+    registered_at?: string | null;     // util, optional
+
+    // join: players
     players:
     | {
         full_name: string;
         display_name: string | null;
         first_name: string | null;
         last_name: string | null;
+
         mp: number | string | null;
         mp_max: number | string | null;
+
         penalty_points: number;
         banned_until: string | null;
     }
     | null;
 };
+
 
 type GroupWithMembers = {
     id: string;
