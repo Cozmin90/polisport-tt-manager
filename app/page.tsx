@@ -460,6 +460,9 @@ export default function HomePage() {
                                 <Link href="/tournaments" className="ps-btn ps-btn-outline text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:bg-black/5">
                                     Istoric Turnee
                                 </Link>
+                                <Link href="/players" className="ps-btn ps-btn-outline text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:bg-black/5">
+                                    Jucători
+                                </Link>
                             </div>
 
                             {/* Branding */}
