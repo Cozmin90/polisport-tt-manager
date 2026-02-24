@@ -926,13 +926,6 @@ export default function AdminTournamentPage() {
         const { data: me } = await supabase.from("players").select("is_admin").eq("id", auth.user.id).single();
         const admin = !!me?.is_admin;
         setIsAdmin(admin);
-
-        if (!admin) {
-            setLoading(false);
-            router.push("/");
-            return;
-        }
-
         const { data: t } = await supabase.from("tournaments").select("title,format,status,registration_open,max_players,places_saved_at").eq("id", tournamentId).single();
 
         setTitle(t?.title ?? "");
@@ -1932,10 +1925,12 @@ export default function AdminTournamentPage() {
     }, [tournamentId]);
 
     if (loading) return <main style={{ padding: 24 }}>Se încarcă...</main>;
-    if (!isAdmin) return <main style={{ padding: 24 }}>Acces interzis.</main>;
-
     return (
         <main className="min-h-screen">
+            {!isAdmin ? (
+                <style>{`\n                    /* Read-only view: hide admin action buttons */\n                    .admin-only, [data-admin=\"1\"] { display: none !important; }\n                    button { display: none !important; }\n                `}</style>
+            ) : null}
+
             <div className="mx-auto max-w-6xl px-4 py-6">
                 {/* Top bar – Rankedin style */}
                 <div className="ps-card mb-6 px-5 py-4">
@@ -1943,19 +1938,20 @@ export default function AdminTournamentPage() {
                         <div className="flex items-center gap-3">
                             <Link href="/" className="ps-btn ps-btn-outline text-sm">Înapoi</Link>
                             <div>
-                                <div className="text-xl font-extrabold leading-tight">Administrare turneu</div>
+                                <div className="text-xl font-extrabold leading-tight">{isAdmin ? "Administrare turneu" : "Turneu"}</div>
                                 <div className="text-sm" style={{ color: "var(--ps-muted)" }}>
-                                    Gestionează înscrieri, grupe, KO și clasamentul final
+                                    {isAdmin ? "Gestionează înscrieri, grupe, KO și clasamentul final" : "Vizualizează grupe, KO și clasamentul final"}
                                 </div>
                             </div>
                         </div>
-
+                        {isAdmin &&
                         <div className="flex flex-wrap items-center gap-2">
                             <div className="px-3 py-1 rounded-full text-xs font-extrabold"
                                 style={{ border: "1px solid var(--ps-border)", color: "var(--ps-primary)", background: "rgba(47,63,115,0.06)" }}>
                                 Admin
                             </div>
-                        </div>
+                            </div>
+                        }
                     </div>
                 </div>
 
@@ -2675,7 +2671,7 @@ export default function AdminTournamentPage() {
 
 
                     {/* CLASAMENT TOTAL */}
-                    {showFinalRanking && champion ? (
+                    {((showFinalRanking && champion) || (!isAdmin && overallRanking && overallRanking.length > 0)) ? (
                         <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12, background: "white", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
                             <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Clasament total (toți înscrișii)</h2>
                             <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
