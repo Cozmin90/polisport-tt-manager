@@ -1355,20 +1355,90 @@ export default function AdminTournamentPage() {
         const G = chooseGroupCount(N, 3, 4, 3);
         if (!G) return
         const sizes = buildGroupSizes(N, G);
-        const shuffled = [...uniq].sort(() => Math.random() - 0.5);
+
+        // --- FIX: evită (pe cât posibil) ca doi jucători din aceeași grupă inferioară să ajungă în aceeași grupă superioară ---
+        const lowerKeyByPlayer = new Map<string, string>();
+        for (const lg of groupsLower) {
+            // folosim numele grupei inferioare ca "cheie" stabilă (A/B/C...), suficient pentru separare
+            for (const mem of lg.members) lowerKeyByPlayer.set(mem.player_id, lg.name ?? String(lg.id));
+        }
+
+        // păstrăm un strop de random ca înainte, dar controlat pe "buckets"
+        const buckets = new Map<string, { id: string; name: string; lowerKey: string }[]>();
+        for (const p of uniq) {
+            const lowerKey = lowerKeyByPlayer.get(p.id) ?? "UNK";
+            const arr = buckets.get(lowerKey) ?? [];
+            arr.push({ ...p, lowerKey });
+            buckets.set(lowerKey, arr);
+        }
+        // shuffle în fiecare bucket
+        for (const [k, arr] of buckets.entries()) {
+            buckets.set(k, [...arr].sort(() => Math.random() - 0.5));
+        }
+        let bucketKeys = Array.from(buckets.keys()).sort(() => Math.random() - 0.5);
 
         const names = Array.from({ length: G }, (_, i) => `Superioare ${String.fromCharCode(65 + i)}`);
         const { data: created, error: gErr } = await supabase.from("groups").insert(names.map((name) => ({ tournament_id: tournamentId, stage: "UPPER_GROUP", name }))).select("id,name");
         if (gErr) return
-        const inserts: any[] = [];
-        let idx = 0;
-        for (let gi = 0; gi < created!.length; gi++) {
-            for (let k = 0; k < sizes[gi]; k++) {
-                const p = shuffled[idx++];
-                inserts.push({ group_id: created![gi].id, player_id: p.id, seed: k + 1, wins: 0, losses: 0, points_for: 0, points_against: 0, rank_in_group: null });
+
+        // greedy assignment cu restricție "max 1 din aceeași grupă inferioară" per grupă superioară (fallback dacă nu se poate)
+        const assigned: { id: string; name: string; lowerKey: string }[][] = Array.from({ length: G }, () => []);
+        const usedLowerKeys: Set<string>[] = Array.from({ length: G }, () => new Set<string>());
+
+        let safety = 0;
+        while (true) {
+            // verificăm dacă mai există jucători nealocați
+            const remainingTotal = bucketKeys.reduce((acc, key) => acc + (buckets.get(key)?.length ?? 0), 0);
+            if (remainingTotal === 0) break;
+            if (safety++ > 100000) break;
+
+            // iterăm bucket-urile într-o ordine randomizată ca să evităm pattern-uri fixe
+            bucketKeys = bucketKeys.sort(() => Math.random() - 0.5);
+
+            for (const key of bucketKeys) {
+                const arr = buckets.get(key);
+                if (!arr || arr.length === 0) continue;
+
+                const p = arr.shift()!;
+
+                // alege grupa superioară cu loc disponibil și care nu conține deja lowerKey-ul
+                let best = -1;
+                let bestSize = 1e9;
+
+                for (let gi = 0; gi < G; gi++) {
+                    if (assigned[gi].length >= sizes[gi]) continue;
+                    if (usedLowerKeys[gi].has(p.lowerKey)) continue;
+                    if (assigned[gi].length < bestSize) {
+                        bestSize = assigned[gi].length;
+                        best = gi;
+                    }
+                }
+
+                // fallback: dacă nu găsim fără conflict (caz rar când G e mic / multe coliziuni), punem în prima grupă cu loc
+                if (best === -1) {
+                    for (let gi = 0; gi < G; gi++) {
+                        if (assigned[gi].length < sizes[gi]) {
+                            best = gi;
+                            break;
+                        }
+                    }
+                }
+
+                if (best !== -1) {
+                    assigned[best].push(p);
+                    usedLowerKeys[best].add(p.lowerKey);
+                }
             }
         }
 
+        const inserts: any[] = [];
+        for (let gi = 0; gi < created!.length; gi++) {
+            for (let k = 0; k < sizes[gi]; k++) {
+                const p = assigned[gi][k];
+                if (!p) continue;
+                inserts.push({ group_id: created![gi].id, player_id: p.id, seed: k + 1, wins: 0, losses: 0, points_for: 0, points_against: 0, rank_in_group: null });
+            }
+        }
         const { error: mErr } = await supabase.from("group_members").insert(inserts);
         if (mErr) return alert("Eroare group_members (superioare): " + mErr.message);
         await load();
@@ -1945,11 +2015,11 @@ export default function AdminTournamentPage() {
                             </div>
                         </div>
                         {isAdmin &&
-                        <div className="flex flex-wrap items-center gap-2">
-                            <div className="px-3 py-1 rounded-full text-xs font-extrabold"
-                                style={{ border: "1px solid var(--ps-border)", color: "var(--ps-primary)", background: "rgba(47,63,115,0.06)" }}>
-                                Admin
-                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="px-3 py-1 rounded-full text-xs font-extrabold"
+                                    style={{ border: "1px solid var(--ps-border)", color: "var(--ps-primary)", background: "rgba(47,63,115,0.06)" }}>
+                                    Admin
+                                </div>
                             </div>
                         }
                     </div>

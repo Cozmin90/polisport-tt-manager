@@ -1322,15 +1322,64 @@ export default function AdminTournamentPage() {
         const names = Array.from({ length: G }, (_, i) => `Superioare ${String.fromCharCode(65 + i)}`);
         const { data: created, error: gErr } = await supabase.from("groups").insert(names.map((name) => ({ tournament_id: tournamentId, stage: "UPPER_GROUP", name }))).select("id,name");
         if (gErr) return
+
         const inserts: any[] = [];
-        let idx = 0;
-        for (let gi = 0; gi < created!.length; gi++) {
-            for (let k = 0; k < sizes[gi]; k++) {
-                const p = shuffled[idx++];
-                inserts.push({ group_id: created![gi].id, player_id: p.id, seed: k + 1, wins: 0, losses: 0, points_for: 0, points_against: 0, rank_in_group: null });
+
+        // Evităm, pe cât posibil, ca doi jucători proveniți din aceeași grupă inferioară
+        // să ajungă în aceeași grupă superioară.
+        const lowerGroupOf = new Map<string, string>();
+        for (const g of groupsLower) {
+            for (const m of g.members) lowerGroupOf.set(m.player_id, g.name);
+        }
+
+        const playersMeta = shuffled.map((p) => ({ ...p, lowerKey: lowerGroupOf.get(p.id) ?? "" }));
+
+        const assigned: { id: string; name: string; lowerKey: string }[][] = Array.from({ length: created!.length }, () => []);
+        const usedLower: Set<string>[] = Array.from({ length: created!.length }, () => new Set<string>());
+
+        // Greedy: fiecare jucător merge în grupa cu slot disponibil care NU are deja aceeași "lowerKey";
+        // dacă nu există, îl punem în grupa cu slot disponibil (fallback).
+        for (const p of playersMeta) {
+            let best = -1;
+            let bestScore = -1;
+            for (let gi = 0; gi < created!.length; gi++) {
+                if (assigned[gi].length >= sizes[gi]) continue;
+
+                const ok = p.lowerKey ? !usedLower[gi].has(p.lowerKey) : true;
+                const remaining = sizes[gi] - assigned[gi].length;
+
+                // Preferăm puternic un loc "ok" + păstrăm echilibrul (mai multe sloturi rămase)
+                const score = (ok ? 1000 : 0) + remaining;
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = gi;
+                }
+            }
+            if (best === -1) continue;
+
+            assigned[best].push(p);
+            if (p.lowerKey) usedLower[best].add(p.lowerKey);
+        }
+
+        // Safety net: dacă (rar) rămâne cineva nealocat, completăm în prima grupă cu loc.
+        const already = new Set<string>(assigned.flat().map((x) => x.id));
+        const leftovers = playersMeta.filter((p) => !already.has(p.id));
+        for (const p of leftovers) {
+            for (let gi = 0; gi < created!.length; gi++) {
+                if (assigned[gi].length < sizes[gi]) {
+                    assigned[gi].push(p);
+                    break;
+                }
             }
         }
 
+        for (let gi = 0; gi < created!.length; gi++) {
+            for (let k = 0; k < sizes[gi]; k++) {
+                const p = assigned[gi][k];
+                if (!p) continue;
+                inserts.push({ group_id: created![gi].id, player_id: p.id, seed: k + 1, wins: 0, losses: 0, points_for: 0, points_against: 0, rank_in_group: null });
+            }
+        }
         const { error: mErr } = await supabase.from("group_members").insert(inserts);
         if (mErr) return alert("Eroare group_members (superioare): " + mErr.message);
         await load();
