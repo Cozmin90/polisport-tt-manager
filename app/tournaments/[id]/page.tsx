@@ -738,12 +738,12 @@ export default function AdminTournamentPage() {
                 // MP curent (din profil) - păstrat doar informativ
                 const mpCurrent = normalizeNum(p?.mp, 2);
                 // MP la înscriere (snapshot din registrations.mp_before)
-                const mpReg = normalizeNum((r as any).mp_before, mpCurrent);
                 // MP folosit în liste/seed/calcul: snapshot
-                const mp = mpReg;
+                const mp = normalizeNum(p?.mp, 2);
                 const mpMaxBase = normalizeNum(p?.mp_max, mp);
                 const mpAmatur = normalizeNum((p as any)?.amatur_mp, 0);
                 const mpMax = Math.max(mpMaxBase, mpAmatur);
+                const mpReg = normalizeNum((r as any).mp_before, 2);
                 // mpReg este definit mai sus
 
                 const present = ((r as any).present ?? null) as boolean | null;
