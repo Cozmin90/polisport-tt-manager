@@ -1666,6 +1666,10 @@ export default function AdminTournamentPage() {
             // ✅ victorii în KO (pentru total victorii turneu)
             koWins: 0,
 
+            // ✅ seturi în KO (pentru setaveraj strict KO)
+            koPF: 0,
+            koPA: 0,
+
             // progres KO / grupe
             koRound: 0,
             groupStage: "" as "UPPER_GROUP" | "LOWER_GROUP" | "",
@@ -1736,6 +1740,34 @@ export default function AdminTournamentPage() {
             if (row) row.koWins = w;
         }
 
+
+        // ✅ KO seturi (pf/pa) strict din KO, pentru departajare în aceeași rundă
+        const koSetsByPlayer = new Map<string, { pf: number; pa: number }>();
+        for (const m of matchesKO) {
+            if (!m.player1_id || !m.player2_id) continue;
+            const sc = parseScore(m.score);
+            if (!sc) continue;
+            const p1 = m.player1_id;
+            const p2 = m.player2_id;
+
+            const v1 = koSetsByPlayer.get(p1) ?? { pf: 0, pa: 0 };
+            v1.pf += sc.a;
+            v1.pa += sc.b;
+            koSetsByPlayer.set(p1, v1);
+
+            const v2 = koSetsByPlayer.get(p2) ?? { pf: 0, pa: 0 };
+            v2.pf += sc.b;
+            v2.pa += sc.a;
+            koSetsByPlayer.set(p2, v2);
+        }
+        for (const [id, v] of koSetsByPlayer.entries()) {
+            const row = idToRow.get(id);
+            if (row) {
+                row.koPF = v.pf;
+                row.koPA = v.pa;
+            }
+        }
+
         // victorii + grupă/rank (prefer UPPER dacă există)
         const upperByPlayer = new Map<
             string,
@@ -1794,31 +1826,49 @@ export default function AdminTournamentPage() {
 
         // ✅ sortarea finală (Varianta 1: Podium + total victorii + setaveraj grupe + MP la înscriere + alfabetic)
         const sorted = [...base].sort((a, b) => {
-            if (useSavedPlaces) {
-                const ap = a.savedPlace ?? 9999;
-                const bp = b.savedPlace ?? 9999;
-                if (ap !== bp) return ap - bp;
-                return a.name.localeCompare(b.name);
-            }
             // 1) Podium (1,2,3,3) mereu sus
             if (a.finalPlace && b.finalPlace) return a.finalPlace - b.finalPlace;
             if (a.finalPlace && !b.finalPlace) return -1;
             if (!a.finalPlace && b.finalPlace) return 1;
 
-            // 2) Total victorii în turneu (grupe + KO), descrescător
-            const aTotalWins = (a.winsLower ?? 0) + (a.winsUpper ?? 0) + (a.koWins ?? 0);
-            const bTotalWins = (b.winsLower ?? 0) + (b.winsUpper ?? 0) + (b.koWins ?? 0);
-            if (bTotalWins !== aTotalWins) return bTotalWins - aTotalWins;
+            // 2) Progres KO: cine ajunge mai departe în KO stă mereu mai sus (independent de grupe)
+            const aHasKO = (a.koRound ?? 0) > 0;
+            const bHasKO = (b.koRound ?? 0) > 0;
+            if (aHasKO !== bHasKO) return aHasKO ? -1 : 1;
+            if (aHasKO && bHasKO) {
+                if ((b.koRound ?? 0) !== (a.koRound ?? 0)) return (b.koRound ?? 0) - (a.koRound ?? 0);
 
-            // 3) Setaveraj în grupe (inf + sup), descrescător
-            const aSetDiff = (a.pfLower - a.paLower) + (a.pfUpper - a.paUpper);
-            const bSetDiff = (b.pfLower - b.paLower) + (b.pfUpper - b.paUpper);
-            if (bSetDiff !== aSetDiff) return bSetDiff - aSetDiff;
+                // Departajări strict KO (în aceeași rundă KO)
+                if ((b.koWins ?? 0) !== (a.koWins ?? 0)) return (b.koWins ?? 0) - (a.koWins ?? 0);
 
-            // 4) MP la înscriere (descrescător)
+                const aKoSetDiff = (a.koPF ?? 0) - (a.koPA ?? 0);
+                const bKoSetDiff = (b.koPF ?? 0) - (b.koPA ?? 0);
+                if (bKoSetDiff !== aKoSetDiff) return bKoSetDiff - aKoSetDiff;
+            }
+
+            // 3) Grupe: Upper înainte de Lower
+            const aGS = a.groupStage ?? "";
+            const bGS = b.groupStage ?? "";
+            const gsOrder = (x: string) => (x === "UPPER_GROUP" ? 0 : x === "LOWER_GROUP" ? 1 : 2);
+            const gsd = gsOrder(aGS) - gsOrder(bGS);
+            if (gsd !== 0) return gsd;
+
+            // 4) Departajări în grupe (strict pe grupa lui)
+            if (aGS === "UPPER_GROUP" && bGS === "UPPER_GROUP") {
+                if ((b.winsUpper ?? 0) !== (a.winsUpper ?? 0)) return (b.winsUpper ?? 0) - (a.winsUpper ?? 0);
+                const aSetDiffU = (a.pfUpper ?? 0) - (a.paUpper ?? 0);
+                const bSetDiffU = (b.pfUpper ?? 0) - (b.paUpper ?? 0);
+                if (bSetDiffU !== aSetDiffU) return bSetDiffU - aSetDiffU;
+            }
+            if (aGS === "LOWER_GROUP" && bGS === "LOWER_GROUP") {
+                if ((b.winsLower ?? 0) !== (a.winsLower ?? 0)) return (b.winsLower ?? 0) - (a.winsLower ?? 0);
+                const aSetDiffL = (a.pfLower ?? 0) - (a.paLower ?? 0);
+                const bSetDiffL = (b.pfLower ?? 0) - (b.paLower ?? 0);
+                if (bSetDiffL !== aSetDiffL) return bSetDiffL - aSetDiffL;
+            }
+
+            // 5) MP la înscriere (descrescător), apoi alfabetic
             if (b.mpReg !== a.mpReg) return b.mpReg - a.mpReg;
-
-            // 5) Alfabetic
             return a.name.localeCompare(b.name);
         });
 
@@ -2848,7 +2898,7 @@ export default function AdminTournamentPage() {
                                     </table>
 
                                     <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
-                                        Notă: ZV = zero victorii în turneu. Sortare: Podium → total victorii (grupe + KO) → setaveraj grupe → MP (la înscriere) → alfabetic.
+                                            Notă: ZV = zero victorii în turneu. Sortare: Podium → rundă KO atinsă → victorii și setaveraj KO → rezultate grupe (victorii + setaveraj).
                                     </div>
                                 </div>
                             )}
