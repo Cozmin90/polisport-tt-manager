@@ -760,7 +760,7 @@ export default function AdminTournamentPage() {
                 return { id: r.player_id, name, mp, mpMax, mpReg, category: playerCategoryFromMp(mpReg), present, attended, regStatus: r.status, absence };
             })
             .sort((a, b) => {
-                if (b.mp !== a.mp) return b.mp - a.mp; // MP desc
+                if (b.mpReg !== a.mpReg) return b.mpReg - a.mpReg; // MP desc
                 return a.name.localeCompare(b.name); // la egalitate: alfabetic
             });
 
@@ -2308,7 +2308,7 @@ export default function AdminTournamentPage() {
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td style={{ padding: "8px 6px", textAlign: "right" }}>{p.mp}</td>
+                                                <td style={{ padding: "8px 6px", textAlign: "right" }}>{p.mpReg}</td>
                                             </tr>
                                         ))}
                                     </tbody>
