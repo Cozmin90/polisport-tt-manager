@@ -2832,6 +2832,7 @@ export default function AdminTournamentPage() {
                                                 <th style={{ padding: "8px 6px", width: 110, textAlign: "center" }}>Victorii gr. inf.</th>
                                                 <th style={{ padding: "8px 6px", width: 110, textAlign: "center" }}>Victorii gr. sup.</th>
                                                 <th style={{ padding: "8px 6px", width: 80, textAlign: "center" }}>KO W</th>
+                                                <th style={{ padding: "8px 6px", width: 100, textAlign: "center" }}>Setaveraj KO</th>
                                                 <th style={{ padding: "8px 6px", width: 90, textAlign: "center" }}>Total W</th>
                                                 <th style={{ padding: "8px 6px", width: 120, textAlign: "center" }}>Setaveraj grupe</th>
                                                 <th style={{ padding: "8px 6px", width: 140, textAlign: "right" }}>MP Turneu (bonus inclus)</th>
@@ -2854,6 +2855,7 @@ export default function AdminTournamentPage() {
                                                                     : "—";
 
                                                 const totalWins = (p.winsLower ?? 0) + (p.winsUpper ?? 0) + (p.koWins ?? 0);
+                                                const koSetDiff = (p.koPF ?? 0) - (p.koPA ?? 0);
                                                 const setDiff = (p.pfLower - p.paLower) + (p.pfUpper - p.paUpper);
 
                                                 return (
@@ -2875,6 +2877,7 @@ export default function AdminTournamentPage() {
                                                         <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.winsLower ?? 0}</td>
                                                         <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.winsUpper ?? 0}</td>
                                                         <td style={{ padding: "8px 6px", textAlign: "center" }}>{p.koWins ?? 0}</td>
+                                                        <td style={{ padding: "8px 6px", textAlign: "center" }}>{koSetDiff}</td>
                                                         <td style={{ padding: "8px 6px", textAlign: "center", fontWeight: 700 }}>{totalWins}</td>
                                                         <td style={{ padding: "8px 6px", textAlign: "center" }}>{setDiff}</td>
                                                         <td style={{ padding: "8px 6px", textAlign: "right" }}>
