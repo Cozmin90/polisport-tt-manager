@@ -424,6 +424,7 @@ export default function AdminTournamentPage() {
     const [savingPlaces, setSavingPlaces] = useState(false);
     const [placesSavedAt, setPlacesSavedAt] = useState<string | null>(null);
     const [placesSavedAtRaw, setPlacesSavedAtRaw] = useState<string | null>(null);
+    const [isRated, setIsRated] = useState<boolean>(true);
 
     // ---- Print helpers (foi de concurs) ----
     type PrintTarget =
@@ -926,13 +927,14 @@ export default function AdminTournamentPage() {
         const { data: me } = await supabase.from("players").select("is_admin").eq("id", auth.user.id).single();
         const admin = !!me?.is_admin;
         setIsAdmin(admin);
-        const { data: t } = await supabase.from("tournaments").select("title,format,status,registration_open,max_players,places_saved_at").eq("id", tournamentId).single();
+        const { data: t } = await supabase.from("tournaments").select("title,format,status,registration_open,max_players,places_saved_at,is_rated").eq("id", tournamentId).single();
 
         setTitle(t?.title ?? "");
         setFormat((t?.format as TournamentFormat) ?? "LOWER_UPPER_KO");
         setTournamentStatus(t?.status ?? "UPCOMING");
         setRegistrationOpen(!!t?.registration_open);
         setMaxPlayers(typeof t?.max_players === "number" ? t.max_players : null);
+        setIsRated((t as any)?.is_rated !== false);
 
         const psa = (t as any)?.places_saved_at as string | null | undefined;
         if (psa) {
@@ -1944,7 +1946,11 @@ export default function AdminTournamentPage() {
             return;
         }
 
-        const ok = window.confirm("Vrei să salvezi în DB locurile + MP Turneu (registrations.final_place / mp_turneu) și să recalculezi MP-urile jucătorilor?");
+        const ok = window.confirm(
+            isRated
+                ? "Vrei să salvezi în DB locurile + MP Turneu (registrations.final_place / mp_turneu) și să recalculezi MP-urile jucătorilor?"
+                : "Vrei să salvezi în DB doar locurile finale pentru acest turneu de agrement/nepunctat?\n\nMP Turneu NU va fi salvat, iar MP-urile jucătorilor NU vor fi recalculate."
+        );
         if (!ok) return;
 
         setSavingPlaces(true);
@@ -1978,7 +1984,7 @@ export default function AdminTournamentPage() {
                             final_place: idx + 1,
                             ko_label: koLabel,
                             is_zv: isZv,
-                            mp_turneu: isZv ? null : (p.mpTournament == null ? null : Math.round(p.mpTournament)),
+                            mp_turneu: !isRated || isZv ? null : (p.mpTournament == null ? null : Math.round(p.mpTournament)),
                         } as any
                     )
                     .eq("tournament_id", tournamentId)
@@ -1991,12 +1997,14 @@ export default function AdminTournamentPage() {
             }
 
 
-            // Recalculează MP-ul fiecărui jucător ca medie a ultimelor 4 MP Turneu (registrations.mp_turneu)
-            for (const p of overallRanking as any[]) {
-                const { error: rpcErr } = await supabase.rpc("recalc_player_mp", { p_player_id: p.id });
-                if (rpcErr) {
-                    console.error("recalc_player_mp error for", p?.id, rpcErr);
-                    throw new Error(`Eroare recalcul MP pentru ${p?.name ?? p?.id}: ${rpcErr.message}`);
+            if (isRated) {
+                // Recalculează MP-ul fiecărui jucător ca medie a ultimelor 4 MP Turneu (registrations.mp_turneu)
+                for (const p of overallRanking as any[]) {
+                    const { error: rpcErr } = await supabase.rpc("recalc_player_mp", { p_player_id: p.id });
+                    if (rpcErr) {
+                        console.error("recalc_player_mp error for", p?.id, rpcErr);
+                        throw new Error(`Eroare recalcul MP pentru ${p?.name ?? p?.id}: ${rpcErr.message}`);
+                    }
                 }
             }
 
@@ -2806,9 +2814,13 @@ export default function AdminTournamentPage() {
                                         cursor: savingPlaces ? "not-allowed" : "pointer",
                                         opacity: savingPlaces ? 0.6 : 1,
                                     }}
-                                    title="Scrie în registrations.final_place și registrations.mp_turneu, apoi recalculează players.mp ca medie a ultimelor 4 turnee."
+                                    title={
+                                        isRated
+                                            ? "Scrie în registrations.final_place și registrations.mp_turneu, apoi recalculează players.mp ca medie a ultimelor 4 turnee."
+                                            : "Scrie doar în registrations.final_place / ko_label / is_zv. Pentru turneele nepunctate nu salvează mp_turneu și nu recalculează players.mp."
+                                    }
                                 >
-                                    {savingPlaces ? "Se salvează..." : placesSavedAtRaw ? "Locuri deja salvate" : "Salvează locurile în DB"}
+                                    {savingPlaces ? "Se salvează..." : placesSavedAtRaw ? "Locuri deja salvate" : isRated ? "Salvează locurile + MP în DB" : "Salvează doar locurile în DB"}
                                 </button>
 
                                 {placesSavedAt ? (
