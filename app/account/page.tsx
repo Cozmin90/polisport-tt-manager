@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -14,6 +14,10 @@ type PlayerRow = {
     mp_max: number | null;
     amatur_mp: number | null;
     is_admin: boolean | null;
+    upb_role?: string | null;
+    upb_center?: string | null;
+    upb_faculty?: string | null;
+    upb_partner_name?: string | null;
 };
 
 type TournamentRow = {
@@ -197,6 +201,42 @@ function Mini({ label, value }: { label: string; value: number }) {
     );
 }
 
+
+const UPB_FACULTY_OPTIONS = [
+    { value: "1. Facultatea de Inginerie Electrică", label: "1. Facultatea de Inginerie Electrică" },
+    { value: "2. Facultatea de Inginerie Industrială și Robotică", label: "2. Facultatea de Inginerie Industrială și Robotică" },
+    { value: "3. Facultatea de Inginerie Chimică și Biotehnologii", label: "3. Facultatea de Inginerie Chimică și Biotehnologii" },
+    { value: "4. Facultatea de Energetică", label: "4. Facultatea de Energetică" },
+    { value: "5. Facultatea de Ingineria Sistemelor Biotehnice", label: "5. Facultatea de Ingineria Sistemelor Biotehnice" },
+    { value: "6. Facultatea de Inginerie în Limbi Străine", label: "6. Facultatea de Inginerie în Limbi Străine" },
+    { value: "7. Facultatea de Automatică și Calculatoare", label: "7. Facultatea de Automatică și Calculatoare" },
+    { value: "8. Facultatea de Transporturi", label: "8. Facultatea de Transporturi" },
+    { value: "9. Facultatea de Științe Aplicate", label: "9. Facultatea de Științe Aplicate" },
+    { value: "10. Facultatea de Electronică, Telecomunicații și Tehnologia Informației", label: "10. Facultatea de Electronică, Telecomunicații și Tehnologia Informației" },
+    { value: "11. Facultatea de Inginerie Aerospațială", label: "11. Facultatea de Inginerie Aerospațială" },
+    { value: "12. Facultatea de Inginerie Medicală", label: "12. Facultatea de Inginerie Medicală" },
+    { value: "13. Facultatea de Inginerie Mecanică și Mecatronică", label: "13. Facultatea de Inginerie Mecanică și Mecatronică" },
+    { value: "14. Facultatea de Știința și Ingineria Materialelor", label: "14. Facultatea de Știința și Ingineria Materialelor" },
+    { value: "15. Facultatea de Antreprenoriat, Ingineria și Managementul Afacerilor", label: "15. Facultatea de Antreprenoriat, Ingineria și Managementul Afacerilor" },
+    { value: "16. Facultatea de Științe, Educație Fizică și Informatică", label: "16. Facultatea de Științe, Educație Fizică și Informatică" },
+    { value: "17. Facultatea de Mecanică și Tehnologie", label: "17. Facultatea de Mecanică și Tehnologie" },
+    { value: "18. Facultatea de Electronică, Comunicații și Calculatoare", label: "18. Facultatea de Electronică, Comunicații și Calculatoare" },
+    { value: "19. Facultatea de Științe ale Educației, Științe Sociale și Psihologie", label: "19. Facultatea de Științe ale Educației, Științe Sociale și Psihologie" },
+    { value: "20. Facultatea de Științe Economice și Drept", label: "20. Facultatea de Științe Economice și Drept" },
+    { value: "21. Facultatea de Teologie, Litere, Istorie și Arte", label: "21. Facultatea de Teologie, Litere, Istorie și Arte" },
+    { value: "22. Rectorat / Administrativ", label: "22. Rectorat / Administrativ" },
+] as const;
+
+function prettyUpbRole(role: string | null | undefined) {
+    const r = String(role ?? "").trim().toLowerCase();
+    if (r === "employee") return "Profesor / Angajat UPB";
+    if (r === "student") return "Student UPB";
+    if (r === "alumni") return "Alumni UPB";
+    if (r === "partner") return "Partener UPB";
+    if (r === "guest") return "Invitat UPB";
+    return "Nesetat";
+}
+
 export default function AccountPage() {
     const [loading, setLoading] = useState(true);
     const [authEmail, setAuthEmail] = useState<string | null>(null);
@@ -213,6 +253,14 @@ export default function AccountPage() {
     const [amaturValue, setAmaturValue] = useState<number | "">(player?.amatur_mp ?? "");
     const [savingAmatur, setSavingAmatur] = useState(false);
     const [amaturMsg, setAmaturMsg] = useState<string | null>(null);
+    const [editAff, setEditAff] = useState(false);
+    const [affRole, setAffRole] = useState<string>("");
+    const [affCenter, setAffCenter] = useState<string>("");
+    const [affFaculty, setAffFaculty] = useState<string>("");
+    const [affPartner, setAffPartner] = useState<string>("");
+    const [savingAff, setSavingAff] = useState(false);
+    const [affMsg, setAffMsg] = useState<string | null>(null);
+
 
     // Penalizări / ban (ciclu care se resetează după expirarea banului)
     const [penaltyPoints, setPenaltyPoints] = useState(0); // puncte curente (după ultimul reset)
@@ -259,7 +307,7 @@ export default function AccountPage() {
 
             const { data: p, error: pErr } = await supabase
                 .from("players")
-                .select("id,display_name,full_name,first_name,last_name,mp,mp_max,amatur_mp,is_admin")
+                .select("id,display_name,full_name,first_name,last_name,mp,mp_max,amatur_mp,is_admin,upb_role,upb_center,upb_faculty,upb_partner_name")
                 .eq("id", uid)
                 .maybeSingle();
 
@@ -275,6 +323,13 @@ export default function AccountPage() {
             if (!mounted) return;
 
             setPlayer(resolvedPlayer);
+
+            if (resolvedPlayer) {
+                setAffRole(resolvedPlayer.upb_role ?? "");
+                setAffCenter(resolvedPlayer.upb_center ?? "");
+                setAffFaculty(resolvedPlayer.upb_faculty ?? "");
+                setAffPartner(resolvedPlayer.upb_partner_name ?? "");
+            }
 
             const pid = resolvedPlayer?.id ?? uid;
             setPlayerIdForRegs(pid);
@@ -698,6 +753,219 @@ export default function AccountPage() {
                                     </div>
                                 )}
                                 <Row label="Categoria jucătorului" value={playerCat} />
+
+                                <div style={{ marginTop: 20 }}>
+                                    <div style={{ fontWeight: 900, marginBottom: 8 }}>Statut și afiliere UPB</div>
+
+                                    {!editAff ? (
+                                        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                                            <b>{prettyUpbRole(player?.upb_role)}</b>
+                                            <button
+                                                onClick={() => {
+                                                    setEditAff(true);
+                                                    setAffMsg(null);
+                                                }}
+                                                style={{
+                                                    border: "1px solid #444",
+                                                    borderRadius: 8,
+                                                    padding: "4px 8px",
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                Editează
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: "grid", gap: 10, maxWidth: 420 }}>
+                                            <select
+                                                value={affRole}
+                                                onChange={(e) => {
+                                                    const v = e.target.value;
+                                                    setAffRole(v);
+                                                    setAffCenter("");
+                                                    setAffFaculty("");
+                                                    setAffPartner("");
+                                                }}
+                                                style={{
+                                                    padding: "8px 10px",
+                                                    borderRadius: 8,
+                                                    border: "1px solid #444",
+                                                    background: "transparent",
+                                                    color: "inherit",
+                                                }}
+                                            >
+                                                <option value="">Selectează...</option>
+                                                <option value="employee">Profesor / Angajat UPB</option>
+                                                <option value="student">Student UPB</option>
+                                                <option value="alumni">Alumni UPB</option>
+                                                <option value="partner">Partener UPB</option>
+                                                <option value="guest">Invitat UPB</option>
+                                            </select>
+
+                                            {(affRole === "employee" || affRole === "student" || affRole === "alumni") && (
+                                                <>
+                                                    <select
+                                                        value={affCenter}
+                                                        onChange={(e) => setAffCenter(e.target.value)}
+                                                        style={{
+                                                            padding: "8px 10px",
+                                                            borderRadius: 8,
+                                                            border: "1px solid #444",
+                                                            background: "transparent",
+                                                            color: "inherit",
+                                                        }}
+                                                    >
+                                                        <option value="">Centru universitar</option>
+                                                        <option value="BUC">UPB București</option>
+                                                        <option value="PIT">UPB Pitești</option>
+                                                    </select>
+
+                                                                   <select
+                                                                        value={affFaculty}
+                                                                        onChange={(e) => setAffFaculty(e.target.value)}
+                                                                        style={{
+                                                                            padding: "8px 10px",
+                                                                            borderRadius: 8,
+                                                                            border: "1px solid #444",
+                                                                            background: "transparent",
+                                                                            color: "inherit",
+                                                                        }}
+                                                                    >
+                                                                        <option value="">Selectează facultatea</option>
+
+                                                                        <option value="1. Facultatea de Inginerie Electrică">1. Facultatea de Inginerie Electrică</option>
+                                                                        <option value="2. Facultatea de Inginerie Industrială și Robotică">2. Facultatea de Inginerie Industrială și Robotică</option>
+                                                                        <option value="3. Facultatea de Inginerie Chimică și Biotehnologii">3. Facultatea de Inginerie Chimică și Biotehnologii</option>
+                                                                        <option value="4. Facultatea de Energetică">4. Facultatea de Energetică</option>
+                                                                        <option value="5. Facultatea de Ingineria Sistemelor Biotehnice">5. Facultatea de Ingineria Sistemelor Biotehnice</option>
+                                                                        <option value="6. Facultatea de Inginerie în Limbi Străine">6. Facultatea de Inginerie în Limbi Străine</option>
+                                                                        <option value="7. Facultatea de Automatică și Calculatoare">7. Facultatea de Automatică și Calculatoare</option>
+                                                                        <option value="8. Facultatea de Transporturi">8. Facultatea de Transporturi</option>
+                                                                        <option value="9. Facultatea de Științe Aplicate">9. Facultatea de Științe Aplicate</option>
+                                                                        <option value="10. Facultatea de Electronică, Telecomunicații și Tehnologia Informației">10. Facultatea de Electronică, Telecomunicații și Tehnologia Informației</option>
+                                                                        <option value="11. Facultatea de Inginerie Aerospațială">11. Facultatea de Inginerie Aerospațială</option>
+                                                                        <option value="12. Facultatea de Inginerie Medicală">12. Facultatea de Inginerie Medicală</option>
+                                                                        <option value="13. Facultatea de Inginerie Mecanică și Mecatronică">13. Facultatea de Inginerie Mecanică și Mecatronică</option>
+                                                                        <option value="14. Facultatea de Știința și Ingineria Materialelor">14. Facultatea de Știința și Ingineria Materialelor</option>
+                                                                        <option value="15. Facultatea de Antreprenoriat, Ingineria și Managementul Afacerilor">15. Facultatea de Antreprenoriat, Ingineria și Managementul Afacerilor</option>
+
+                                                                        <option value="16. Facultatea de Științe, Educație Fizică și Informatică">16. Facultatea de Științe, Educație Fizică și Informatică</option>
+                                                                        <option value="17. Facultatea de Mecanică și Tehnologie">17. Facultatea de Mecanică și Tehnologie</option>
+                                                                        <option value="18. Facultatea de Electronică, Comunicații și Calculatoare">18. Facultatea de Electronică, Comunicații și Calculatoare</option>
+                                                                        <option value="19. Facultatea de Științe ale Educației, Științe Sociale și Psihologie">19. Facultatea de Științe ale Educației, Științe Sociale și Psihologie</option>
+                                                                        <option value="20. Facultatea de Științe Economice și Drept">20. Facultatea de Științe Economice și Drept</option>
+                                                                        <option value="21. Facultatea de Teologie, Litere, Istorie și Arte">21. Facultatea de Teologie, Litere, Istorie și Arte</option>
+
+                                                                        <option value="22. Rectorat / Administrativ">22. Rectorat / Administrativ</option>
+                                                                    </select>
+                                                </>
+                                            )}
+
+                                            {affRole === "partner" && (
+                                                <input
+                                                    placeholder="Nume partener"
+                                                    value={affPartner}
+                                                    onChange={(e) => setAffPartner(e.target.value)}
+                                                    style={{
+                                                        padding: "8px 10px",
+                                                        borderRadius: 8,
+                                                        border: "1px solid #444",
+                                                        background: "transparent",
+                                                        color: "inherit",
+                                                    }}
+                                                />
+                                            )}
+
+                                            <div style={{ display: "flex", gap: 8 }}>
+                                                <button
+                                                    disabled={savingAff}
+                                                    onClick={async () => {
+                                                        setSavingAff(true);
+                                                        setAffMsg(null);
+
+                                                        if (
+                                                            (affRole === "employee" || affRole === "student" || affRole === "alumni") &&
+                                                            (!affCenter || !affFaculty.trim())
+                                                        ) {
+                                                            setAffMsg("Completează centrul universitar și facultatea.");
+                                                            setSavingAff(false);
+                                                            return;
+                                                        }
+
+                                                        if (affRole === "partner" && !affPartner.trim()) {
+                                                            setAffMsg("Completează denumirea partenerului.");
+                                                            setSavingAff(false);
+                                                            return;
+                                                        }
+
+                                                        const { error } = await supabase
+                                                            .from("players")
+                                                            .update({
+                                                                upb_role: affRole || null,
+                                                                upb_center: affRole === "employee" || affRole === "student" || affRole === "alumni" ? (affCenter || null) : null,
+                                                                upb_faculty: affRole === "employee" || affRole === "student" || affRole === "alumni" ? (affFaculty.trim() || null) : null,
+                                                                upb_partner_name: affRole === "partner" ? (affPartner.trim() || null) : null,
+                                                            })
+                                                            .eq("id", player.id);
+
+                                                        if (error) {
+                                                            setAffMsg("Eroare la salvare.");
+                                                        } else {
+                                                            setPlayer((prev) =>
+                                                                prev
+                                                                    ? {
+                                                                        ...prev,
+                                                                        upb_role: affRole || null,
+                                                                        upb_center: affRole === "employee" || affRole === "student" || affRole === "alumni" ? (affCenter || null) : null,
+                                                                        upb_faculty: affRole === "employee" || affRole === "student" || affRole === "alumni" ? (affFaculty.trim() || null) : null,
+                                                                        upb_partner_name: affRole === "partner" ? (affPartner.trim() || null) : null,
+                                                                    }
+                                                                    : prev
+                                                            );
+                                                            setAffMsg("Salvat ✔");
+                                                            setEditAff(false);
+                                                        }
+
+                                                        setSavingAff(false);
+                                                    }}
+                                                    style={{
+                                                        border: "1px solid #444",
+                                                        borderRadius: 8,
+                                                        padding: "6px 10px",
+                                                        cursor: savingAff ? "not-allowed" : "pointer",
+                                                        opacity: savingAff ? 0.6 : 1,
+                                                    }}
+                                                >
+                                                    Salvează
+                                                </button>
+
+                                                <button
+                                                    onClick={() => {
+                                                        setEditAff(false);
+                                                        setAffRole(player?.upb_role ?? "");
+                                                        setAffCenter(player?.upb_center ?? "");
+                                                        setAffFaculty(player?.upb_faculty ?? "");
+                                                        setAffPartner(player?.upb_partner_name ?? "");
+                                                        setAffMsg(null);
+                                                    }}
+                                                    style={{
+                                                        border: "1px solid #444",
+                                                        borderRadius: 8,
+                                                        padding: "6px 10px",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    Anulează
+                                                </button>
+                                            </div>
+
+                                            {affMsg ? (
+                                                <div style={{ fontSize: 13, opacity: 0.85 }}>{affMsg}</div>
+                                            ) : null}
+                                        </div>
+                                    )}
+                                </div>
+
                                 <div style={{ marginTop: 10 }}>
                                     <div style={{ fontWeight: 900, marginBottom: 8 }}>Doar ultimele 4 MP Turneu sunt folosite la medie (excluse ZV)</div>
 

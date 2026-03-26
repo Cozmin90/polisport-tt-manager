@@ -37,6 +37,72 @@ function catShort(c: PlayerCat) {
 }
 
 
+const FACULTY_SHORT_MAP: Record<string, string> = {
+    "Facultatea de Inginerie Electrică": "IE",
+    "Facultatea de Inginerie Industrială și Robotică": "FIIR",
+    "Facultatea de Inginerie Chimică și Biotehnologii": "ICB",
+    "Facultatea de Energetică": "ENER",
+    "Facultatea de Ingineria Sistemelor Biotehnice": "ISB",
+    "Facultatea de Inginerie în Limbi Străine": "FILS",
+    "Facultatea de Automatică și Calculatoare": "AC",
+    "Facultatea de Transporturi": "TR",
+    "Facultatea de Științe Aplicate": "FSA",
+    "Facultatea de Electronică, Telecomunicații și Tehnologia Informației": "ETTI",
+    "Facultatea de Inginerie Aerospațială": "AERO",
+    "Facultatea de Inginerie Medicală": "IMED",
+    "Facultatea de Inginerie Mecanică și Mecatronică": "FIMM",
+    "Facultatea de Știința și Ingineria Materialelor": "SIM",
+    "Facultatea de Antreprenoriat, Ingineria și Managementul Afacerilor": "FAIMA",
+    "Facultatea de Științe, Educație Fizică și Informatică": "SEFI",
+    "Facultatea de Mecanică și Tehnologie": "MT",
+    "Facultatea de Electronică, Comunicații și Calculatoare": "ECC",
+    "Facultatea de Științe ale Educației, Științe Sociale și Psihologie": "SESSP",
+    "Facultatea de Științe Economice și Drept": "SED",
+    "Facultatea de Teologie, Litere, Istorie și Arte": "TLIA",
+    "Rectorat / Administrativ": "ADM",
+};
+
+function stripFacultyPrefix(value: string | null | undefined) {
+    return String(value ?? "").replace(/^\d+\.\s*/, "").trim();
+}
+
+function getAffiliationShortFromPlayer(player: any): string {
+    if (!player?.upb_role) return "";
+
+    if (player.upb_role === "guest") return "Invitat UPB";
+
+    if (player.upb_role === "partner") {
+        const partner = String(player.upb_partner_name ?? "").trim();
+        return partner ? `Partener UPB/${partner}` : "Partener UPB";
+    }
+
+    if (["employee", "student", "alumni"].includes(player.upb_role)) {
+        const center = String(player.upb_center ?? "").trim() || "?";
+        const facultyRaw = stripFacultyPrefix(player.upb_faculty);
+        const facultyShort = FACULTY_SHORT_MAP[facultyRaw] ?? facultyRaw;
+        return facultyShort ? `UPB ${center}/${facultyShort}` : `UPB ${center}`;
+    }
+
+    return "";
+}
+
+function getBasePlayerName(player: any): string {
+    return (
+        String(player?.display_name ?? "").trim() ||
+        [player?.first_name, player?.last_name].filter(Boolean).join(" ").trim() ||
+        (String(player?.full_name ?? "").includes("@") ? "" : String(player?.full_name ?? "").trim()) ||
+        String(player?.full_name ?? "").trim() ||
+        "—"
+    );
+}
+
+function formatPlayerName(player: any): string {
+    const base = getBasePlayerName(player);
+    const aff = getAffiliationShortFromPlayer(player);
+    return aff ? `${base} (${aff})` : base;
+}
+
+
 
 type RegistrationRow = {
     // din tabela registrations
@@ -74,9 +140,15 @@ type RegistrationRow = {
 
         mp: number | string | null;
         mp_max: number | string | null;
+        amatur_mp?: number | string | null;
 
         penalty_points: number;
         banned_until: string | null;
+
+        upb_role?: string | null;
+        upb_center?: string | null;
+        upb_faculty?: string | null;
+        upb_partner_name?: string | null;
     }
     | null;
 };
@@ -106,8 +178,30 @@ type MatchRow = {
     player2_id: string | null;
     score: string | null;
     winner_id: string | null;
-    p1?: { full_name: string } | null;
-    p2?: { full_name: string } | null;
+    p1?:
+        | {
+            full_name: string;
+            display_name?: string | null;
+            first_name?: string | null;
+            last_name?: string | null;
+            upb_role?: string | null;
+            upb_center?: string | null;
+            upb_faculty?: string | null;
+            upb_partner_name?: string | null;
+        }
+        | null;
+    p2?:
+        | {
+            full_name: string;
+            display_name?: string | null;
+            first_name?: string | null;
+            last_name?: string | null;
+            upb_role?: string | null;
+            upb_center?: string | null;
+            upb_faculty?: string | null;
+            upb_partner_name?: string | null;
+        }
+        | null;
 };
 
 type Stat = { wins: number; losses: number; pf: number; pa: number };
@@ -729,12 +823,7 @@ export default function AdminTournamentPage() {
             .map((r) => {
                 const p = r.players;
 
-                const name =
-                    (p?.display_name ?? "").trim() ||
-                    [p?.first_name, p?.last_name].filter(Boolean).join(" ").trim() ||
-                    ((p?.full_name ?? "").includes("@") ? "" : (p?.full_name ?? "").trim()) ||
-                    p?.full_name ||
-                    "—";
+                const name = formatPlayerName(p);
 
                 // MP curent (din profil) - păstrat doar informativ
                 const mpCurrent = normalizeNum(p?.mp, 2);
@@ -871,7 +960,7 @@ export default function AdminTournamentPage() {
                 .select(
                     `
           player_id,wins,losses,points_for,points_against,rank_in_group,
-          players:player_id(full_name)
+          players:player_id(full_name,display_name,first_name,last_name,upb_role,upb_center,upb_faculty,upb_partner_name)
         `
                 )
                 .eq("group_id", g.id);
@@ -881,7 +970,7 @@ export default function AdminTournamentPage() {
             const members =
                 (mem ?? []).map((m: any) => ({
                     player_id: m.player_id,
-                    full_name: m.players?.full_name ?? m.player_id,
+                    full_name: formatPlayerName(m.players ?? { full_name: m.player_id }),
                     wins: m.wins ?? 0,
                     losses: m.losses ?? 0,
                     points_for: m.points_for ?? 0,
@@ -902,8 +991,8 @@ export default function AdminTournamentPage() {
             .select(
                 `
         id,stage,round,group_id,player1_id,player2_id,score,winner_id,
-        p1:player1_id(full_name),
-        p2:player2_id(full_name)
+        p1:player1_id(full_name,display_name,first_name,last_name,upb_role,upb_center,upb_faculty,upb_partner_name),
+        p2:player2_id(full_name,display_name,first_name,last_name,upb_role,upb_center,upb_faculty,upb_partner_name)
       `
             )
             .eq("tournament_id", tournamentId)
@@ -912,7 +1001,11 @@ export default function AdminTournamentPage() {
             .order("created_at", { ascending: true });
 
         if (error) return [];
-        return (mm as any) ?? [];
+        return ((mm as any) ?? []).map((m: any) => ({
+            ...m,
+            p1: m?.p1 ? { ...m.p1, full_name: formatPlayerName(m.p1) } : m?.p1 ?? null,
+            p2: m?.p2 ? { ...m.p2, full_name: formatPlayerName(m.p2) } : m?.p2 ?? null,
+        }));
     }
 
     async function load() {
@@ -968,7 +1061,7 @@ export default function AdminTournamentPage() {
         mp_before,
         mp_turneu,
         mp_after,
-        players:player_id(full_name,display_name,first_name,last_name,mp,mp_max,amatur_mp,penalty_points,banned_until)
+        players:player_id(full_name,display_name,first_name,last_name,mp,mp_max,amatur_mp,penalty_points,banned_until,upb_role,upb_center,upb_faculty,upb_partner_name)
       `
             )
             .eq("tournament_id", tournamentId)
