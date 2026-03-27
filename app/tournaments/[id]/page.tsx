@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -86,6 +86,17 @@ function getAffiliationShortFromPlayer(player: any): string {
     return "";
 }
 
+
+function getStatusLabelFromPlayer(player: any): string {
+    const role = String(player?.upb_role ?? "").trim();
+    if (role === "employee") return "Profesor/Angajat";
+    if (role === "student") return "Student";
+    if (role === "alumni") return "Alumni";
+    if (role === "partner") return "Partener";
+    if (role === "guest") return "Invitat";
+    return "—";
+}
+
 function getBasePlayerName(player: any): string {
     return (
         String(player?.display_name ?? "").trim() ||
@@ -161,6 +172,8 @@ type GroupWithMembers = {
     members: {
         player_id: string;
         full_name: string;
+        status_label: string;
+        affiliation_label: string;
         wins: number;
         losses: number;
         points_for: number;
@@ -710,9 +723,12 @@ export default function AdminTournamentPage() {
         // Actualizăm local grupa (fără reload)
         const updatedMembers = ranked.map((rm, idx) => {
             const st = overall[rm.player_id] ?? { wins: 0, losses: 0, pf: 0, pa: 0 };
+            const prevMem = g.members.find((mm) => mm.player_id === rm.player_id);
             return {
                 player_id: rm.player_id,
                 full_name: rm.full_name,
+                status_label: prevMem?.status_label ?? "—",
+                affiliation_label: prevMem?.affiliation_label ?? "—",
                 wins: st.wins,
                 losses: st.losses,
                 points_for: st.pf,
@@ -803,7 +819,20 @@ export default function AdminTournamentPage() {
     const [maxPlayers, setMaxPlayers] = useState<number | null>(null);
 
     // ✅ listă participanți (tabel)
-    const [participants, setParticipants] = useState<{ id: string; name: string; mp: number; mpMax: number; mpReg: number; category: PlayerCat; present: boolean | null; attended: boolean | null; regStatus: string; absence: "AM" | "AN" | null }[]>([]);
+    const [participants, setParticipants] = useState<{
+        id: string;
+        name: string;
+        statusLabel: string;
+        affiliationLabel: string;
+        mp: number;
+        mpMax: number;
+        mpReg: number;
+        category: PlayerCat;
+        present: boolean | null;
+        attended: boolean | null;
+        regStatus: string;
+        absence: "AM" | "AN" | null;
+    }[]>([]);
 
     const activeParticipants = useMemo(() => participants.filter((p) => p.regStatus === "REGISTERED" && p.present !== false && p.attended !== false), [participants]);
 
@@ -823,7 +852,9 @@ export default function AdminTournamentPage() {
             .map((r) => {
                 const p = r.players;
 
-                const name = formatPlayerName(p);
+                const name = getBasePlayerName(p);
+                const statusLabel = getStatusLabelFromPlayer(p);
+                const affiliationLabel = getAffiliationShortFromPlayer(p) || "—";
 
                 // MP curent (din profil) - păstrat doar informativ
                 const mpCurrent = normalizeNum(p?.mp, 2);
@@ -847,7 +878,7 @@ export default function AdminTournamentPage() {
                 const isAbsent = present === false || attended === false;
                 const absence: "AM" | "AN" | null = isAbsent ? ((noShow >= 2 || applied >= 2) ? "AN" : "AM") : null;
 
-                return { id: r.player_id, name, mp, mpMax, mpReg, category: playerCategoryFromMp(mpReg), present, attended, regStatus: r.status, absence };
+                return { id: r.player_id, name, statusLabel, affiliationLabel, mp, mpMax, mpReg, category: playerCategoryFromMp(mpReg), present, attended, regStatus: r.status, absence };
             })
             .sort((a, b) => {
                 if (b.mpReg !== a.mpReg) return b.mpReg - a.mpReg; // MP desc
@@ -968,15 +999,20 @@ export default function AdminTournamentPage() {
             if (mErr) continue;
 
             const members =
-                (mem ?? []).map((m: any) => ({
-                    player_id: m.player_id,
-                    full_name: formatPlayerName(m.players ?? { full_name: m.player_id }),
-                    wins: m.wins ?? 0,
-                    losses: m.losses ?? 0,
-                    points_for: m.points_for ?? 0,
-                    points_against: m.points_against ?? 0,
-                    rank_in_group: m.rank_in_group ?? null,
-                })) ?? [];
+                (mem ?? []).map((m: any) => {
+                    const player = m.players ?? { full_name: m.player_id };
+                    return {
+                        player_id: m.player_id,
+                        full_name: getBasePlayerName(player),
+                        status_label: getStatusLabelFromPlayer(player),
+                        affiliation_label: getAffiliationShortFromPlayer(player) || "—",
+                        wins: m.wins ?? 0,
+                        losses: m.losses ?? 0,
+                        points_for: m.points_for ?? 0,
+                        points_against: m.points_against ?? 0,
+                        rank_in_group: m.rank_in_group ?? null,
+                    };
+                }) ?? [];
 
             members.sort((a, b) => (a.rank_in_group ?? 999) - (b.rank_in_group ?? 999));
 
@@ -1003,8 +1039,8 @@ export default function AdminTournamentPage() {
         if (error) return [];
         return ((mm as any) ?? []).map((m: any) => ({
             ...m,
-            p1: m?.p1 ? { ...m.p1, full_name: formatPlayerName(m.p1) } : m?.p1 ?? null,
-            p2: m?.p2 ? { ...m.p2, full_name: formatPlayerName(m.p2) } : m?.p2 ?? null,
+            p1: m?.p1 ? { ...m.p1, full_name: getBasePlayerName(m.p1) } : m?.p1 ?? null,
+            p2: m?.p2 ? { ...m.p2, full_name: getBasePlayerName(m.p2) } : m?.p2 ?? null,
         }));
     }
 
@@ -1741,6 +1777,8 @@ export default function AdminTournamentPage() {
         const base = activeParticipants.map((p) => ({
             id: p.id,
             name: p.name,
+            statusLabel: p.statusLabel,
+            affiliationLabel: p.affiliationLabel,
 
             // MP la înscriere (snapshot din registrations.mp_before)
             mpReg: p.mpReg,
@@ -2355,7 +2393,9 @@ export default function AdminTournamentPage() {
                                     <thead>
                                         <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
                                             <th style={{ padding: "8px 6px", width: 44 }}>#</th>
-                                            <th style={{ padding: "8px 6px", width: 120 }}>Nume Prenume</th>
+                                            <th style={{ padding: "8px 6px", width: 190 }}>Nume Prenume</th>
+                                            <th style={{ padding: "8px 6px", width: 130 }}>Statut</th>
+                                            <th style={{ padding: "8px 6px", width: 150 }}>Afiliere</th>
                                             <th style={{ padding: "8px 6px", width: 120 }}>Categorie</th>
                                             <th style={{ padding: "8px 6px", width: 180 }}>Absență</th>
                                             <th style={{ padding: "8px 6px", width: 90, textAlign: "right" }}>MP</th>
@@ -2366,6 +2406,8 @@ export default function AdminTournamentPage() {
                                             <tr key={p.id} style={{ borderBottom: "1px solid #f3f3f3" }}>
                                                 <td style={{ padding: "8px 6px" }}>{idx + 1}</td>
                                                 <td style={{ padding: "8px 6px", fontWeight: 900 }}>{p.name}</td>
+                                                <td style={{ padding: "8px 6px" }}>{p.statusLabel}</td>
+                                                <td style={{ padding: "8px 6px" }}>{p.affiliationLabel}</td>
                                                 <td style={{ padding: "8px 6px" }}>{catLabel(p.category)}</td>
                                                 <td style={{ padding: "8px 6px" }}>
                                                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -2507,6 +2549,8 @@ export default function AdminTournamentPage() {
                                                     <tr>
                                                         <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>#</th>
                                                         <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>Jucător</th>
+                                                        <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>Statut</th>
+                                                        <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>Afiliere</th>
                                                         <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>W</th>
                                                         <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>L</th>
                                                         <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>Seturi</th>
@@ -2524,6 +2568,8 @@ export default function AdminTournamentPage() {
                                                                 <tr key={m.player_id} style={undefined}>
                                                                     <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{m.rank_in_group ?? "—"}</td>
                                                                     <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", fontWeight: 800 }}>{m.full_name}</td>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{m.status_label}</td>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{m.affiliation_label}</td>
                                                                     <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>{m.wins}</td>
                                                                     <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>{m.losses}</td>
                                                                     <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>
@@ -2660,6 +2706,8 @@ export default function AdminTournamentPage() {
                                                     <tr>
                                                         <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>#</th>
                                                         <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>Jucător</th>
+                                                        <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>Statut</th>
+                                                        <th style={{ textAlign: "left", borderBottom: "1px solid #eee", padding: 6 }}>Afiliere</th>
                                                         <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>W</th>
                                                         <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>L</th>
                                                         <th style={{ textAlign: "right", borderBottom: "1px solid #eee", padding: 6 }}>Seturi</th>
@@ -2677,6 +2725,8 @@ export default function AdminTournamentPage() {
                                                                 <tr key={m.player_id} style={undefined}>
                                                                     <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{m.rank_in_group ?? "—"}</td>
                                                                     <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{m.full_name}</td>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{m.status_label}</td>
+                                                                    <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3" }}>{m.affiliation_label}</td>
                                                                     <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>{m.wins}</td>
                                                                     <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>{m.losses}</td>
                                                                     <td style={{ padding: 6, borderBottom: "1px solid #f3f3f3", textAlign: "right" }}>
@@ -2932,6 +2982,8 @@ export default function AdminTournamentPage() {
                                             <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
                                                 <th style={{ padding: "8px 6px", width: 60 }}>Loc</th>
                                                 <th style={{ padding: "8px 6px", width: 200 }}>Jucător</th>
+                                                <th style={{ padding: "8px 6px", width: 130 }}>Statut</th>
+                                                <th style={{ padding: "8px 6px", width: 150 }}>Afiliere</th>
                                                 <th style={{ padding: "8px 6px", width: 60 }}>KO</th>
                                                 <th style={{ padding: "8px 6px", width: 60 }}>Categoria</th>
                                                 <th style={{ padding: "8px 6px", width: 110, textAlign: "center" }}>Victorii gr. inf.</th>
@@ -2972,6 +3024,9 @@ export default function AdminTournamentPage() {
                                                         <td style={{ padding: "8px 6px", fontWeight: 900 }}>
                                                             {p.name}
                                                         </td>
+
+                                                        <td style={{ padding: "8px 6px" }}>{p.statusLabel}</td>
+                                                        <td style={{ padding: "8px 6px" }}>{p.affiliationLabel}</td>
 
                                                         <td style={{ padding: "8px 6px" }}>{koLabel}</td>
 

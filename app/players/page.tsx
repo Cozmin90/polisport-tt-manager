@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -12,6 +12,10 @@ type PlayerRow = {
     mp_max: number | string | null;
     penalty_points: number | null;
     banned_until: string | null;
+    upb_role?: string | null;
+    upb_center?: string | null;
+    upb_faculty?: string | null;
+    upb_partner_name?: string | null;
 };
 
 type SortKey =
@@ -44,6 +48,74 @@ const catLabels: Record<"H" | "A" | "E", string> = {
     E: "Elite",
 };
 
+function getRoleLabel(role?: string | null): string {
+    switch (role) {
+        case "employee":
+            return "Profesor / Angajat";
+        case "student":
+            return "Student";
+        case "alumni":
+            return "Alumni";
+        case "partner":
+            return "Partener";
+        case "guest":
+            return "Invitat";
+        default:
+            return "—";
+    }
+}
+
+function getFacultyShort(raw?: string | null): string {
+    const cleaned = String(raw ?? "").replace(/^\d+\.\s*/, "").trim();
+    if (!cleaned) return "—";
+
+    const map: Record<string, string> = {
+        "Facultatea de Inginerie Electrică": "IE",
+        "Facultatea de Inginerie Industrială și Robotică": "FIIR",
+        "Facultatea de Inginerie Chimică și Biotehnologii": "FICBi",
+        "Facultatea de Energetică": "ENER",
+        "Facultatea de Ingineria Sistemelor Biotehnice": "ISB",
+        "Facultatea de Inginerie în Limbi Străine": "FILS",
+        "Facultatea de Automatică și Calculatoare": "AC",
+        "Facultatea de Transporturi": "TR",
+        "Facultatea de Științe Aplicate": "FSA",
+        "Facultatea de Electronică, Telecomunicații și Tehnologia Informației": "ETTI",
+        "Facultatea de Inginerie Aerospațială": "IAERO",
+        "Facultatea de Inginerie Medicală": "IM",
+        "Facultatea de Inginerie Mecanică și Mecatronică": "FIMM",
+        "Facultatea de Știința și Ingineria Materialelor": "SIM",
+        "Facultatea de Antreprenoriat, Ingineria și Managementul Afacerilor": "FAIMA",
+        "Facultatea de Științe, Educație Fizică și Informatică": "SEFI",
+        "Facultatea de Mecanică și Tehnologie": "MT",
+        "Facultatea de Electronică, Comunicații și Calculatoare": "ECC",
+        "Facultatea de Științe ale Educației, Științe Sociale și Psihologie": "SESSP",
+        "Facultatea de Științe Economice și Drept": "SED",
+        "Facultatea de Teologie, Litere, Istorie și Arte": "TLIA",
+        "Rectorat / Administrativ": "RECT/ADM",
+    };
+
+    return map[cleaned] ?? cleaned;
+}
+
+function getAffiliationLabel(p: Pick<PlayerRow, "upb_role" | "upb_center" | "upb_faculty" | "upb_partner_name">): string {
+    if (!p?.upb_role) return "—";
+
+    if (p.upb_role === "guest") return "Invitat UPB";
+
+    if (p.upb_role === "partner") {
+        const partner = String(p.upb_partner_name ?? "").trim();
+        return partner ? `Partener UPB / ${partner}` : "Partener UPB";
+    }
+
+    if (p.upb_role === "employee" || p.upb_role === "student" || p.upb_role === "alumni") {
+        const center = p.upb_center === "PIT" ? "UPB PIT" : p.upb_center === "BUC" ? "UPB BUC" : "UPB";
+        const faculty = getFacultyShort(p.upb_faculty);
+        return faculty && faculty !== "—" ? `${center} / ${faculty}` : center;
+    }
+
+    return "—";
+}
+
 export default function PlayersDirectoryPage() {
     const [players, setPlayers] = useState<PlayerRow[]>([]);
     const [loading, setLoading] = useState(true);
@@ -60,10 +132,9 @@ export default function PlayersDirectoryPage() {
             setLoading(true);
             setErr(null);
 
-            // IMPORTANT: ca pagina să fie publică (anon), ai nevoie de RLS SELECT public pe players (sau view public).
             const { data, error } = await supabase
                 .from("players")
-                .select("id, full_name, display_name, mp, mp_max, penalty_points, banned_until")
+                .select("id, full_name, display_name, mp, mp_max, penalty_points, banned_until, upb_role, upb_center, upb_faculty, upb_partner_name")
                 .order("full_name", { ascending: true });
 
             if (cancelled) return;
@@ -93,13 +164,19 @@ export default function PlayersDirectoryPage() {
                 const name = (p.display_name || p.full_name || "").trim();
                 const mp = toNum(p.mp);
                 const mpMax = toNum(p.mp_max);
-                const category = categoryFromMpMax(mpMax); // 🔒 doar MP MAX contează
-                return { ...p, name, mp, mpMax, category };
+                const category = categoryFromMpMax(mpMax);
+                const roleLabel = getRoleLabel(p.upb_role);
+                const affiliationLabel = getAffiliationLabel(p);
+                return { ...p, name, mp, mpMax, category, roleLabel, affiliationLabel };
             })
             .filter((p) => {
                 if (activeCat !== "ALL" && p.category !== activeCat) return false;
                 if (!q) return true;
-                return p.name.toLowerCase().includes(q);
+                return (
+                    p.name.toLowerCase().includes(q) ||
+                    p.roleLabel.toLowerCase().includes(q) ||
+                    p.affiliationLabel.toLowerCase().includes(q)
+                );
             });
     }, [players, search, activeCat]);
 
@@ -135,7 +212,7 @@ export default function PlayersDirectoryPage() {
     }, [sorted]);
 
     return (
-        <div style={{ padding: 18, maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{ padding: 18, maxWidth: 1280, margin: "0 auto" }}>
             <div
                 style={{
                     display: "flex",
@@ -181,7 +258,7 @@ export default function PlayersDirectoryPage() {
                     <input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Caută după nume…"
+                        placeholder="Caută după nume, statut sau afiliere…"
                         style={{
                             flex: "1 1 260px",
                             padding: "10px 12px",
@@ -266,6 +343,8 @@ export default function PlayersDirectoryPage() {
                                         <thead>
                                             <tr style={{ background: "rgba(0,0,0,0.04)" }}>
                                                 <th style={{ textAlign: "left", padding: 12 }}>Jucător</th>
+                                                <th style={{ textAlign: "left", padding: 12, width: 170 }}>Statut</th>
+                                                <th style={{ textAlign: "left", padding: 12, width: 220 }}>Afiliere</th>
                                                 <th style={{ textAlign: "right", padding: 12, width: 120 }}>MP</th>
                                                 <th style={{ textAlign: "right", padding: 12, width: 120 }}>MP Max</th>
                                                 <th style={{ textAlign: "right", padding: 12, width: 140 }}>Profil</th>
@@ -288,6 +367,8 @@ export default function PlayersDirectoryPage() {
                                                             </span>
                                                         ) : null}
                                                     </td>
+                                                    <td style={{ padding: 12 }}>{p.roleLabel}</td>
+                                                    <td style={{ padding: 12 }}>{p.affiliationLabel}</td>
                                                     <td style={{ padding: 12, textAlign: "right" }}>{toNum(p.mp)}</td>
                                                     <td style={{ padding: 12, textAlign: "right" }}>{toNum(p.mp_max)}</td>
                                                     <td style={{ padding: 12, textAlign: "right" }}>
