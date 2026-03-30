@@ -29,6 +29,11 @@ type Tournament = {
     donation_min?: string | null;
     donation?: string | null;
 
+    // Campionatul UPB
+    is_upb_championship?: boolean | null;
+    championship_season?: string | null;
+    championship_stage?: number | null;
+
     // calculate (optional)
     registered_count?: number;
     spots_left?: number | null;
@@ -83,6 +88,99 @@ function prettyStatus(s: string) {
     return s;
 }
 
+function normalizeUpbRole(role: string | null | undefined): "student" | "employee" | "other" | null {
+    const v = (role ?? "").toString().trim().toLowerCase();
+    if (!v) return null;
+
+    if ([
+        "student",
+        "stud",
+        "student upb",
+        "studenti",
+        "student master",
+        "masterand",
+        "doctorand",
+        "phd",
+    ].includes(v)) {
+        return "student";
+    }
+
+    if ([
+        "employee",
+        "angajat",
+        "staff",
+        "profesor",
+        "cadru didactic",
+        "didactic",
+        "nedidactic",
+        "personal",
+        "personal auxiliar",
+        "cercetator",
+        "employee upb",
+    ].includes(v)) {
+        return "employee";
+    }
+
+    if ([
+        "guest",
+        "invitat",
+        "invitat",
+        "extern",
+        "external",
+        "alumni",
+        "alumnus",
+        "partener",
+        "partner",
+    ].includes(v)) {
+        return "other";
+    }
+
+    return "other";
+}
+
+function getUpbEligibility(params: {
+    tournament: Tournament;
+    userId: string | null;
+    upbRole: string | null;
+    upbFaculty: string | null;
+}) {
+    const { tournament, userId, upbRole, upbFaculty } = params;
+
+    if (!tournament.is_upb_championship) {
+        return { eligible: true, reason: "" };
+    }
+
+    if (!userId) {
+        return { eligible: false, reason: "Autentifică-te pentru a verifica eligibilitatea la Campionatul UPB." };
+    }
+
+    const faculty = (upbFaculty ?? "").trim();
+    const roleNorm = normalizeUpbRole(upbRole);
+
+    if (!upbRole || !upbRole.toString().trim()) {
+        return {
+            eligible: false,
+            reason: "Pentru etapele Campionatului UPB trebuie să ai completat rolul UPB în profil.",
+        };
+    }
+
+    if (!faculty) {
+        return {
+            eligible: false,
+            reason: "Pentru etapele Campionatului UPB trebuie să ai completată facultatea în profil.",
+        };
+    }
+
+    if (roleNorm !== "student" && roleNorm !== "employee") {
+        return {
+            eligible: false,
+            reason: "La Campionatul UPB se pot înscrie doar studenți și angajați ai UPB.",
+        };
+    }
+
+    return { eligible: true, reason: "" };
+}
+
 export default function HomePage() {
     const router = useRouter();
 
@@ -97,6 +195,8 @@ export default function HomePage() {
     // Amatur
     const [userAmaturMp, setUserAmaturMp] = useState<number | null>(null);
     const [hasAmatur, setHasAmatur] = useState<boolean>(false);
+    const [userUpbRole, setUserUpbRole] = useState<string | null>(null);
+    const [userUpbFaculty, setUserUpbFaculty] = useState<string | null>(null);
 
     const [tournaments, setTournaments] = useState<Tournament[]>([]);
     const [tournamentsTotalCount, setTournamentsTotalCount] = useState<number>(0);
@@ -134,7 +234,7 @@ export default function HomePage() {
             if (uid) {
                 const { data: p } = await supabase
                     .from("players")
-                    .select("display_name, full_name, first_name, last_name, mp, mp_max, amatur_mp, is_admin")
+                    .select("display_name, full_name, first_name, last_name, mp, mp_max, amatur_mp, is_admin, upb_role, upb_faculty")
                     .eq("id", uid)
                     .maybeSingle();
 
@@ -159,12 +259,16 @@ export default function HomePage() {
                     const amNum = am == null ? null : Number(am);
                     setUserAmaturMp(Number.isFinite(amNum as any) ? (amNum as number) : null);
                     setHasAmatur(Number.isFinite(amNum as any));
+                    setUserUpbRole(((p as any).upb_role ?? null) as string | null);
+                    setUserUpbFaculty(((p as any).upb_faculty ?? null) as string | null);
                 }
             } else {
                 setUserMp(2);
                 setUserMpMax(2);
                 setUserAmaturMp(null);
                 setHasAmatur(false);
+                setUserUpbRole(null);
+                setUserUpbFaculty(null);
             }
 
             // 3) tournaments (public list on Home)
@@ -268,6 +372,8 @@ export default function HomePage() {
                 setMyRegistrations({});
                 setHasAmatur(false);
                 setUserAmaturMp(null);
+                setUserUpbRole(null);
+                setUserUpbFaculty(null);
             }
 
             // Re-fetch data that depends on auth
@@ -295,12 +401,26 @@ export default function HomePage() {
         setMyRegistrations({});
         setHasAmatur(false);
         setUserAmaturMp(null);
+        setUserUpbRole(null);
+        setUserUpbFaculty(null);
 
         router.replace("/");
         router.refresh();
     }
     async function registerToTournament(t: Tournament) {
         if (!userId) return;
+
+        const upbEligibility = getUpbEligibility({
+            tournament: t,
+            userId,
+            upbRole: userUpbRole,
+            upbFaculty: userUpbFaculty,
+        });
+
+        if (!upbEligibility.eligible) {
+            alert(upbEligibility.reason);
+            return;
+        }
 
         // eligibilitate simplă: permit "o categorie mai sus" (în regulament) – aici doar blocăm dacă e clar peste.
         const cat = (t.category ?? "ALL") as TournamentCategory;
@@ -463,6 +583,9 @@ export default function HomePage() {
                                 <Link href="/players" className="ps-btn ps-btn-outline text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:bg-black/5">
                                     Jucători
                                 </Link>
+                                <Link href="/championship/upb" className="ps-btn ps-btn-outline text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:bg-black/5">
+                                    Campionat UPB
+                                </Link>
                             </div>
 
                             {/* Branding */}
@@ -552,6 +675,12 @@ export default function HomePage() {
                                         <div className="mt-1 text-xs" style={{ color: "var(--ps-muted)" }}>
                                             Cont Amatur:{" "}
                                             <b style={{ color: "var(--ps-text)" }}>{hasAmatur ? "Da" : "Nu"}</b>
+                                        </div>
+                                        <div className="mt-1 text-xs" style={{ color: "var(--ps-muted)" }}>
+                                            Rol UPB: <b style={{ color: "var(--ps-text)" }}>{userUpbRole?.trim() || "—"}</b>
+                                        </div>
+                                        <div className="mt-1 text-xs" style={{ color: "var(--ps-muted)" }}>
+                                            Facultate: <b style={{ color: "var(--ps-text)" }}>{userUpbFaculty?.trim() || "—"}</b>
                                         </div>
                                     </div>
                                 </div>
@@ -688,9 +817,21 @@ export default function HomePage() {
                                         const reg = myRegistrations[t.id];
                                         const regOpen = !!t.registration_open;
                                         const notFull = !(t.is_full ?? false);
+                                        const upbEligibility = getUpbEligibility({
+                                            tournament: t,
+                                            userId,
+                                            upbRole: userUpbRole,
+                                            upbFaculty: userUpbFaculty,
+                                        });
+                                        const canJoinUpb = upbEligibility.eligible;
 
-                                        const canShowJoin = userId && regOpen && notFull && (reg?.status ?? null) !== "REGISTERED";
-                                        const canShowWithdraw = userId && regOpen && reg?.status === "REGISTERED";
+                                        const canShowJoin =
+                                            !!userId &&
+                                            regOpen &&
+                                            notFull &&
+                                            (reg?.status ?? null) !== "REGISTERED" &&
+                                            canJoinUpb;
+                                        const canShowWithdraw = !!userId && regOpen && reg?.status === "REGISTERED";
 
                                         return (
                                             <div key={t.id} className="ps-card p-5">
@@ -701,6 +842,35 @@ export default function HomePage() {
                                                         </div>
                                                         <div className="mt-1 text-xs" style={{ color: "var(--ps-muted)" }}>
                                                             {toLocalRO24(t.start_at)} • {t.location ?? "—"}
+                                                        </div>
+
+                                                        <div className="mt-2 flex flex-wrap gap-2">
+                                                            {t.is_upb_championship ? (
+                                                                <>
+                                                                    <span
+                                                                        className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold"
+                                                                        style={{ borderColor: "var(--ps-primary)", color: "var(--ps-primary)", background: "rgba(0,128,0,0.06)" }}
+                                                                    >
+                                                                        Campionatul UPB
+                                                                    </span>
+                                                                    {t.championship_season ? (
+                                                                        <span
+                                                                            className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold"
+                                                                            style={{ borderColor: "var(--ps-border)", color: "var(--ps-text)", background: "white" }}
+                                                                        >
+                                                                            Sezon {t.championship_season}
+                                                                        </span>
+                                                                    ) : null}
+                                                                    {typeof t.championship_stage === "number" ? (
+                                                                        <span
+                                                                            className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold"
+                                                                            style={{ borderColor: "var(--ps-border)", color: "var(--ps-text)", background: "white" }}
+                                                                        >
+                                                                            Etapa {t.championship_stage}
+                                                                        </span>
+                                                                    ) : null}
+                                                                </>
+                                                            ) : null}
                                                         </div>
 
                                                         <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -766,7 +936,21 @@ export default function HomePage() {
                                                         Autentifică-te ca să te înscrii.
                                                     </div>
                                                 ) : (
-                                                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                                                    <>
+                                                        {t.is_upb_championship && !upbEligibility.eligible ? (
+                                                            <div
+                                                                className="mt-4 rounded-2xl border px-4 py-3 text-sm"
+                                                                style={{
+                                                                    borderColor: "#d97706",
+                                                                    background: "rgba(245, 158, 11, 0.08)",
+                                                                    color: "#92400e",
+                                                                }}
+                                                            >
+                                                                <b>Etapă Campionatul UPB:</b> {upbEligibility.reason}
+                                                            </div>
+                                                        ) : null}
+
+                                                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                                                         <div className="flex flex-wrap gap-2">
                                                             {canShowJoin && (
                                                                 <button onClick={() => registerToTournament(t)} className="ps-btn ps-btn-primary text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:brightness-95">
@@ -802,6 +986,7 @@ export default function HomePage() {
                                                             </div>
                                                         ) : null}
                                                     </div>
+                                                    </>
                                                 )}
                                             </div>
                                         );

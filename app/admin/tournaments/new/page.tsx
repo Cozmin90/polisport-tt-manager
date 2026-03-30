@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -50,14 +50,27 @@ export default function NewTournamentPage() {
 
     const [donationInfo, setDonationInfo] = useState("Gratuit");
 
+    const [isUpbChampionship, setIsUpbChampionship] = useState(false);
+    const [championshipSeason, setChampionshipSeason] = useState("2025-2026");
+    const [championshipStage, setChampionshipStage] = useState<string>("");
+
     const [submitting, setSubmitting] = useState(false);
     const [errMsg, setErrMsg] = useState<string | null>(null);
     const [okMsg, setOkMsg] = useState<string | null>(null);
 
     const canSubmit = useMemo(() => {
         const t = title.trim();
-        return t.length >= 3 && startAtLocal.trim().length > 0 && !submitting;
-    }, [title, startAtLocal, submitting]);
+        if (t.length < 3 || startAtLocal.trim().length === 0 || submitting) return false;
+        if (!isUpbChampionship) return true;
+        return championshipSeason.trim().length > 0 && championshipStage.trim().length > 0;
+    }, [
+        title,
+        startAtLocal,
+        submitting,
+        isUpbChampionship,
+        championshipSeason,
+        championshipStage,
+    ]);
 
     function toIsoFromDatetimeLocal(dt: string) {
         // dt e de forma "YYYY-MM-DDTHH:mm"
@@ -89,6 +102,19 @@ export default function NewTournamentPage() {
             return;
         }
 
+        const stageInt =
+            championshipStage.trim() === ""
+                ? null
+                : Number.parseInt(championshipStage.trim(), 10);
+
+        if (
+            isUpbChampionship &&
+            (championshipSeason.trim() === "" || stageInt === null || !Number.isFinite(stageInt) || stageInt < 1)
+        ) {
+            setErrMsg("Pentru Campionatul UPB completează sezonul și un număr de etapă valid (>= 1).");
+            return;
+        }
+
         setSubmitting(true);
         try {
             // opțional: verifică auth (dacă ai RLS pentru admin)
@@ -110,6 +136,9 @@ export default function NewTournamentPage() {
                 is_rated: isRated,
                 category,
                 donation_info: donationInfo.trim() === "" ? "Gratuit" : donationInfo.trim(),
+                is_upb_championship: isUpbChampionship,
+                championship_season: isUpbChampionship ? championshipSeason.trim() : null,
+                championship_stage: isUpbChampionship ? stageInt : null,
             };
 
             const { error } = await supabase.from("tournaments").insert(payload);
@@ -376,6 +405,74 @@ export default function NewTournamentPage() {
                             Nu e obligatorie. Poți folosi text liber pentru turnee caritabile.
                         </div>
                     </div>
+                </div>
+
+                <div
+                    style={{
+                        border: "1px solid #d9e7ff",
+                        borderRadius: 12,
+                        padding: 14,
+                        background: "rgba(40,110,255,0.04)",
+                        display: "grid",
+                        gap: 12,
+                    }}
+                >
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <input
+                            id="is_upb_championship"
+                            type="checkbox"
+                            checked={isUpbChampionship}
+                            onChange={(e) => setIsUpbChampionship(e.target.checked)}
+                            style={{ width: 16, height: 16 }}
+                        />
+                        <label htmlFor="is_upb_championship" style={{ fontWeight: 800, cursor: "pointer" }}>
+                            Acest turneu face parte din Campionatul UPB
+                        </label>
+                    </div>
+
+                    <div style={{ fontSize: 12, opacity: 0.8 }}>
+                        Dacă este bifat, turneul va avea sezon și etapă, iar la final se vor salva și punctele de campionat.
+                    </div>
+
+                    {isUpbChampionship && (
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                            <div style={{ display: "grid", gap: 6 }}>
+                                <label style={{ fontWeight: 700 }}>Sezon campionat *</label>
+                                <input
+                                    value={championshipSeason}
+                                    onChange={(e) => setChampionshipSeason(e.target.value)}
+                                    placeholder="Ex: 2025-2026"
+                                    style={{
+                                        padding: 12,
+                                        borderRadius: 10,
+                                        border: "1px solid #ddd",
+                                        fontSize: 14,
+                                        background: "white",
+                                    }}
+                                />
+                            </div>
+
+                            <div style={{ display: "grid", gap: 6 }}>
+                                <label style={{ fontWeight: 700 }}>Etapa *</label>
+                                <input
+                                    value={championshipStage}
+                                    onChange={(e) => setChampionshipStage(e.target.value)}
+                                    placeholder="Ex: 1"
+                                    inputMode="numeric"
+                                    style={{
+                                        padding: 12,
+                                        borderRadius: 10,
+                                        border: "1px solid #ddd",
+                                        fontSize: 14,
+                                        background: "white",
+                                    }}
+                                />
+                                <div style={{ fontSize: 12, opacity: 0.75 }}>
+                                    Introdu un număr întreg: 1, 2, 3 ...
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>

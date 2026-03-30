@@ -38,6 +38,7 @@ type RegistrationRow = {
     // snapshot MP la înscriere + rezultate finale (salvate)
     mp_before?: number | string | null;
     mp_turneu?: number | string | null;
+    championship_points?: number | string | null;
     final_place?: number | null;
     attended?: boolean | null;
     no_show_penalty?: number | null; // penalizare no-show (AN) // prezență marcată de admin (true/false)
@@ -51,6 +52,8 @@ type RegistrationRow = {
         mp_max: number | string | null;
         penalty_points: number;
         banned_until: string | null;
+        upb_role?: string | null;
+        upb_faculty?: string | null;
     }
     | null;
 };
@@ -398,6 +401,9 @@ export default function AdminTournamentPage() {
     const [placesSavedAt, setPlacesSavedAt] = useState<string | null>(null);
     const [placesSavedAtRaw, setPlacesSavedAtRaw] = useState<string | null>(null);
     const [isRated, setIsRated] = useState<boolean>(true);
+    const [isUpbChampionship, setIsUpbChampionship] = useState<boolean>(false);
+    const [championshipSeason, setChampionshipSeason] = useState<string>("");
+    const [championshipStage, setChampionshipStage] = useState<number | null>(null);
 
     // ---- Print helpers (foi de concurs) ----
     type PrintTarget =
@@ -902,7 +908,11 @@ export default function AdminTournamentPage() {
             return;
         }
 
-        const { data: t } = await supabase.from("tournaments").select("title,format,status,registration_open,max_players,places_saved_at,is_rated").eq("id", tournamentId).single();
+        const { data: t } = await supabase
+            .from("tournaments")
+            .select("title,format,status,registration_open,max_players,places_saved_at,is_rated,is_upb_championship,championship_season,championship_stage")
+            .eq("id", tournamentId)
+            .single();
 
         setTitle(t?.title ?? "");
         setFormat((t?.format as TournamentFormat) ?? "LOWER_UPPER_KO");
@@ -910,6 +920,9 @@ export default function AdminTournamentPage() {
         setRegistrationOpen(!!t?.registration_open);
         setMaxPlayers(typeof t?.max_players === "number" ? t.max_players : null);
         setIsRated((t as any)?.is_rated !== false);
+        setIsUpbChampionship(!!(t as any)?.is_upb_championship);
+        setChampionshipSeason(String((t as any)?.championship_season ?? ""));
+        setChampionshipStage(typeof (t as any)?.championship_stage === "number" ? (t as any).championship_stage : null);
 
         const psa = (t as any)?.places_saved_at as string | null | undefined;
         if (psa) {
@@ -930,8 +943,8 @@ export default function AdminTournamentPage() {
             .select(
                 `
         player_id,status,withdrawn_at,penalty_applied,penalty_reason,present,attended,no_show_penalty,
-        mp_before,mp_turneu,final_place,
-        players:player_id(full_name,display_name,first_name,last_name,mp,mp_max,amatur_mp,penalty_points,banned_until)
+        mp_before,mp_turneu,championship_points,final_place,
+        players:player_id(full_name,display_name,first_name,last_name,mp,mp_max,amatur_mp,penalty_points,banned_until,upb_role,upb_faculty)
       `
             )
             .eq("tournament_id", tournamentId)
@@ -1289,6 +1302,32 @@ export default function AdminTournamentPage() {
         return Boolean(mm.score && mm.winner_id);
     }
 
+    function normalizeUpbRole(raw: unknown): "student" | "employee" | null {
+        const s = String(raw ?? "")
+            .trim()
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[̀-ͯ]/g, "");
+
+        if (!s) return null;
+        if (["student", "studenti", "studentie", "studentilor"].includes(s)) return "student";
+        if (
+            [
+                "employee",
+                "angajat",
+                "angajati",
+                "employeee",
+                "staff",
+                "cadru didactic",
+                "profesor",
+                "personal",
+            ].includes(s)
+        ) {
+            return "employee";
+        }
+        return null;
+    }
+
     function areAllLowerGroupsCompleted() {
         if (groupsLower.length === 0) return false;
         const ms = matchesLower.filter((m) => m.group_id);
@@ -1441,13 +1480,21 @@ export default function AdminTournamentPage() {
         if (hasNext) return alert("Runda următoare există deja.");
 
         const current = matchesKO.filter((m) => (m.round ?? 0) === maxRound);
-        if (current.length === 0) return
+        if (current.length === 0) return;
+
         const missing = current.filter((m) => !m.winner_id);
-        if (missing.length > 0) return
-        const winners = current.map((m) => m.winner_id!).filter(Boolean);
+        if (missing.length > 0) return alert("Completează toți câștigătorii rundei curente înainte de avansare.");
+
+        let winners = current.map((m) => m.winner_id!).filter(Boolean);
+
         if (winners.length < 2) {
             alert("Turneul KO s-a terminat (există campion)!");
             return;
+        }
+
+        // Din runda 2 în sus: randomizare completă a câștigătorilor
+        if (maxRound >= 1) {
+            winners = [...winners].sort(() => Math.random() - 0.5);
         }
 
         const inserts: any[] = [];
@@ -1455,8 +1502,29 @@ export default function AdminTournamentPage() {
             const p1 = winners[i];
             const p2 = winners[i + 1] ?? null;
 
-            if (p2) inserts.push({ tournament_id: tournamentId, stage: "KO", round: maxRound + 1, group_id: null, player1_id: p1, player2_id: p2, score: null, winner_id: null });
-            else inserts.push({ tournament_id: tournamentId, stage: "KO", round: maxRound + 1, group_id: null, player1_id: p1, player2_id: null, score: "BYE", winner_id: p1 });
+            if (p2) {
+                inserts.push({
+                    tournament_id: tournamentId,
+                    stage: "KO",
+                    round: maxRound + 1,
+                    group_id: null,
+                    player1_id: p1,
+                    player2_id: p2,
+                    score: null,
+                    winner_id: null,
+                });
+            } else {
+                inserts.push({
+                    tournament_id: tournamentId,
+                    stage: "KO",
+                    round: maxRound + 1,
+                    group_id: null,
+                    player1_id: p1,
+                    player2_id: null,
+                    score: "BYE",
+                    winner_id: p1,
+                });
+            }
         }
 
         const { error } = await supabase.from("matches").insert(inserts);
@@ -1927,16 +1995,23 @@ export default function AdminTournamentPage() {
                                         ? `Runda ${p.koRound}`
                                         : null;
 
+                const mpTurneuRounded = !isRated || isZv ? null : (p.mpTournament == null ? null : Math.round(p.mpTournament));
+                const championshipPoints = isUpbChampionship ? (mpTurneuRounded ?? 0) : undefined;
+
+                const payload: any = {
+                    final_place: idx + 1,
+                    ko_label: koLabel,
+                    is_zv: isZv,
+                    mp_turneu: mpTurneuRounded,
+                };
+
+                if (isUpbChampionship) {
+                    payload.championship_points = championshipPoints;
+                }
+
                 const { error } = await supabase
                     .from("registrations")
-                    .update(
-                        {
-                            final_place: idx + 1,
-                            ko_label: koLabel,
-                            is_zv: isZv,
-                            mp_turneu: !isRated || isZv ? null : (p.mpTournament == null ? null : Math.round(p.mpTournament)),
-                        } as any
-                    )
+                    .update(payload)
                     .eq("tournament_id", tournamentId)
                     .eq("player_id", p.id);
 
@@ -1979,7 +2054,19 @@ export default function AdminTournamentPage() {
                 }
             }
 
-            alert("✅ Locurile și MP Turneu au fost salvate în DB, iar MP-urile jucătorilor au fost recalculate (media ultimelor 4 turnee).");
+            if (isRated) {
+                alert(
+                    isUpbChampionship
+                        ? "✅ Locurile, MP Turneu și championship_points au fost salvate în DB, iar MP-urile jucătorilor au fost recalculate (media ultimelor 4 turnee)."
+                        : "✅ Locurile și MP Turneu au fost salvate în DB, iar MP-urile jucătorilor au fost recalculate (media ultimelor 4 turnee)."
+                );
+            } else {
+                alert(
+                    isUpbChampionship
+                        ? "✅ Locurile au fost salvate în DB. Pentru că turneul este nepunctat, championship_points au fost salvate cu 0."
+                        : "✅ Locurile au fost salvate în DB."
+                );
+            }
         } catch (e: any) {
             alert(e?.message ?? "Eroare salvare locuri.");
         } finally {
@@ -1996,9 +2083,12 @@ export default function AdminTournamentPage() {
 
         setSavingPlaces(true);
         try {
+            const resetPayload: any = { final_place: null, ko_label: null, mp_turneu: null, is_zv: false };
+            if (isUpbChampionship) resetPayload.championship_points = 0;
+
             const { error: e1 } = await supabase
                 .from("registrations")
-                .update({ final_place: null, ko_label: null, mp_turneu: null, is_zv: false } as any)
+                .update(resetPayload as any)
                 .eq("tournament_id", tournamentId);
             if (e1) throw e1;
 
@@ -2147,6 +2237,13 @@ export default function AdminTournamentPage() {
                             <div style={{ opacity: 0.8, fontSize: 13, }}>
                                 Format: {format === "LOWER_UPPER_KO" ? "Inferioare → Superioare → KO" : "Grupe → KO direct"}{forceGroupsKo ? " (fallback: Grupe → KO direct pentru 3–9 jucători)" : ""} • Grupe: {groupsLower.length} • Superioare:{" "}
                                 {groupsUpper.length} • KO: {matchesKO.length} meciuri
+                                {isUpbChampionship ? (
+                                    <>
+                                        {" "}• <b>Campionat UPB</b>
+                                        {championshipSeason ? <> • Sezon: <b>{championshipSeason}</b></> : null}
+                                        {championshipStage != null ? <> • Etapa: <b>{championshipStage}</b></> : null}
+                                    </>
+                                ) : null}
                             </div>
                         </div>
                     </header>
@@ -2257,6 +2354,8 @@ export default function AdminTournamentPage() {
                                                 <td style={{ padding: "8px 6px" }}>{idx + 1}</td>
                                                 <td style={{ padding: "8px 6px", fontWeight: 900 }}>{p.name}</td>
                                                 <td style={{ padding: "8px 6px" }}>{catLabel(p.category)}</td>
+                                                {isUpbChampionship ? <td style={{ padding: "8px 6px" }}>{(rows.find((r) => r.player_id === p.id)?.players as any)?.upb_faculty ?? "—"}</td> : null}
+                                                {isUpbChampionship ? <td style={{ padding: "8px 6px" }}>{normalizeUpbRole((rows.find((r) => r.player_id === p.id)?.players as any)?.upb_role) === "student" ? "Student" : normalizeUpbRole((rows.find((r) => r.player_id === p.id)?.players as any)?.upb_role) === "employee" ? "Angajat" : "—"}</td> : null}
                                                 <td style={{ padding: "8px 6px" }}>
                                                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                                                         <button
@@ -2848,6 +2947,7 @@ export default function AdminTournamentPage() {
                                                 <th style={{ padding: "8px 6px", width: 90, textAlign: "center" }}>Total W</th>
                                                 <th style={{ padding: "8px 6px", width: 120, textAlign: "center" }}>Setaveraj grupe</th>
                                                 <th style={{ padding: "8px 6px", width: 140, textAlign: "right" }}>MP Turneu (bonus inclus)</th>
+                                                {isUpbChampionship ? <th style={{ padding: "8px 6px", width: 110, textAlign: "right" }}>Pct. camp.</th> : null}
                                             </tr>
                                         </thead>
 
@@ -2904,6 +3004,11 @@ export default function AdminTournamentPage() {
                                                                 </span>
                                                             )}
                                                         </td>
+                                                        {isUpbChampionship ? (
+                                                            <td style={{ padding: "8px 6px", textAlign: "right", fontWeight: 800 }}>
+                                                                {totalWins === 0 ? "0" : (p.mpTournament == null ? "0" : String(Math.round(p.mpTournament)))}
+                                                            </td>
+                                                        ) : null}
                                                     </tr>
                                                 );
                                             })}
