@@ -18,33 +18,42 @@ type StandingFilterKey =
 
 type SectionKey = "faculties" | "individual";
 
+type TournamentInfo = {
+  id: string;
+  title: string | null;
+  category: TournamentCategory | null;
+  championship_season: string | null;
+  championship_stage: number | null;
+  start_at: string | null;
+  is_upb_championship: boolean | null;
+};
+
+type PlayerInfo = {
+  id: string;
+  full_name: string | null;
+  display_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  upb_role?: string | null;
+  upb_faculty?: string | null;
+};
+
 type RegistrationJoined = {
   player_id: string | null;
   championship_points: number | null;
   mp_turneu: number | null;
   final_place: number | null;
-  tournaments:
-    | {
-        id: string;
-        title: string | null;
-        category: TournamentCategory | null;
-        championship_season: string | null;
-        championship_stage: number | null;
-        start_at: string | null;
-        is_upb_championship: boolean | null;
-      }
-    | null;
-  players:
-    | {
-        id: string;
-        full_name: string | null;
-        display_name?: string | null;
-        first_name?: string | null;
-        last_name?: string | null;
-        upb_role?: string | null;
-        upb_faculty?: string | null;
-      }
-    | null;
+  tournaments: TournamentInfo | null;
+  players: PlayerInfo | null;
+};
+
+type RegistrationQueryRow = {
+  player_id: string | null;
+  championship_points: number | null;
+  mp_turneu: number | null;
+  final_place: number | null;
+  tournaments: TournamentInfo | TournamentInfo[] | null;
+  players: PlayerInfo | PlayerInfo[] | null;
 };
 
 type FacultyStanding = {
@@ -158,6 +167,22 @@ function denseRank<T>(rows: T[], getPoints: (row: T) => number): (T & { rank: nu
   });
 }
 
+function firstOrNull<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+function normalizeRegistrationRows(data: RegistrationQueryRow[]): RegistrationJoined[] {
+  return data.map((row) => ({
+    player_id: row.player_id ?? null,
+    championship_points: row.championship_points ?? null,
+    mp_turneu: row.mp_turneu ?? null,
+    final_place: row.final_place ?? null,
+    tournaments: firstOrNull(row.tournaments),
+    players: firstOrNull(row.players),
+  }));
+}
+
 function matchesFilter(row: RegistrationJoined, filter: FilterDef): boolean {
   const tournament = row.tournaments;
   const player = row.players;
@@ -199,13 +224,13 @@ export default function ChampionshipPage() {
 
         if (tournamentsError) throw tournamentsError;
 
-        const championshipTournaments = (tournamentsData ?? []) as RegistrationJoined["tournaments"][];
-        const tournamentIds = championshipTournaments.map((t) => t?.id).filter(Boolean) as string[];
+        const championshipTournaments = (tournamentsData ?? []) as TournamentInfo[];
+        const tournamentIds = championshipTournaments.map((t) => t.id).filter(Boolean) as string[];
 
         const seasonList = Array.from(
           new Set(
             championshipTournaments
-              .map((t) => String(t?.championship_season ?? "").trim())
+              .map((t) => String(t.championship_season ?? "").trim())
               .filter(Boolean)
           )
         );
@@ -255,7 +280,8 @@ export default function ChampionshipPage() {
         if (registrationsError) throw registrationsError;
 
         if (isMounted) {
-          setRows((registrationsData ?? []) as RegistrationJoined[]);
+          const normalized = normalizeRegistrationRows((registrationsData ?? []) as RegistrationQueryRow[]);
+          setRows(normalized);
         }
       } catch (err: any) {
         if (isMounted) {
