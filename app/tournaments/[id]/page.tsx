@@ -907,6 +907,33 @@ export default function AdminTournamentPage() {
         const points = kind === "AN" ? 2 : 0;
         const reason = kind === "AN" ? "Absență nemotivată (+2 puncte)" : "Absență motivată (0 puncte)";
 
+        // Un rezultat introdus dovedește participarea. Nu permitem excluderea
+        // accidentală a jucătorului din clasamentul final după disputarea meciurilor.
+        const { data: playerMatches, error: matchesErr } = await supabase
+            .from("matches")
+            .select("id,score,winner_id")
+            .eq("tournament_id", tournamentId)
+            .or(`player1_id.eq.${playerId},player2_id.eq.${playerId}`);
+
+        if (matchesErr) {
+            alert("Eroare verificare meciuri: " + matchesErr.message);
+            return;
+        }
+
+        const playedMatches = (playerMatches ?? []).filter((match: any) => {
+            const score = String(match?.score ?? "").trim().toUpperCase();
+            return score !== "" && score !== "BYE";
+        });
+
+        if (playedMatches.length > 0) {
+            const playerName = participants.find((p) => p.id === playerId)?.name ?? "Jucătorul";
+            alert(
+                `${playerName} nu poate fi marcat absent deoarece are ${playedMatches.length} ${playedMatches.length === 1 ? "meci disputat" : "meciuri disputate"}.\n\n` +
+                "Corectează mai întâi rezultatele introduse, dacă acestea sunt greșite."
+            );
+            return;
+        }
+
         // Citim starea curentă ca să evităm update-uri inutile
         const { data: reg, error: regErr } = await supabase
             .from("registrations")
@@ -2012,7 +2039,7 @@ export default function AdminTournamentPage() {
         // - mpTournament = mpSector + bonus
         // MP sector pe blocuri de 4 din LISTA DE ÎNSCRIERE (nu din clasamentul final)
         const regSorted = [...activeParticipants].sort((a, b) => {
-            if (b.mp !== a.mp) return b.mp - a.mp;
+            if (b.mpReg !== a.mpReg) return b.mpReg - a.mpReg;
             return a.name.localeCompare(b.name);
         });
 
@@ -2020,7 +2047,7 @@ export default function AdminTournamentPage() {
         for (let i = 0; i < regSorted.length; i += 4) {
             const blk = regSorted.slice(i, i + 4);
             const mean = blk.length
-                ? blk.reduce((acc, p) => acc + (Number.isFinite(p.mp) ? p.mp : 0), 0) / blk.length
+                ? blk.reduce((acc, p) => acc + (Number.isFinite(p.mpReg) ? p.mpReg : 0), 0) / blk.length
                 : 0;
             regMeans.push(mean);
         }
