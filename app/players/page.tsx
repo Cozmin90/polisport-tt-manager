@@ -261,6 +261,8 @@ export default function PlayersDirectoryPage() {
                         placeholder="Caută după nume, statut sau afiliere…"
                         style={{
                             flex: "1 1 260px",
+                            minWidth: 0,
+                            width: "100%",
                             padding: "10px 12px",
                             borderRadius: 10,
                             border: "1px solid rgba(0,0,0,0.18)",
@@ -272,6 +274,7 @@ export default function PlayersDirectoryPage() {
                         value={sort}
                         onChange={(e) => setSort(e.target.value as SortKey)}
                         style={{
+                            maxWidth: "100%",
                             padding: "10px 12px",
                             borderRadius: 10,
                             border: "1px solid rgba(0,0,0,0.18)",
@@ -330,7 +333,9 @@ export default function PlayersDirectoryPage() {
                                 style={{
                                     borderRadius: 12,
                                     border: "1px solid rgba(0,0,0,0.12)",
-                                    overflow: "hidden",
+                                    overflowX: "auto",
+                                    overflowY: "hidden",
+                                    WebkitOverflowScrolling: "touch",
                                     background: "#fff",
                                 }}
                             >
@@ -339,7 +344,7 @@ export default function PlayersDirectoryPage() {
                                         Niciun jucător în această categorie.
                                     </div>
                                 ) : (
-                                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                                    <table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse" }}>
                                         <thead>
                                             <tr style={{ background: "rgba(0,0,0,0.04)" }}>
                                                 <th style={{ textAlign: "left", padding: 12 }}>Jucător</th>
