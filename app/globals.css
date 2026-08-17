@@ -19,6 +19,7 @@
 
 html, body {
   height: 100%;
+  max-width: 100%;
 }
 
 body {
@@ -30,11 +31,11 @@ body {
 }
 
 .ps-card {
-    background: var(--ps-card);
-    border: 1px solid var(--ps-border);
-    border-radius: 18px;
-    box-shadow: 0 3px 6px rgba(0,0,0,0.4);
-    
+  background: var(--ps-card);
+  border: 1px solid var(--ps-border);
+  border-radius: 18px;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+  min-width: 0;
 }
 
 .ps-btn {
@@ -57,4 +58,69 @@ body {
 
 .ps-btn-primary:hover {
   background: var(--ps-accent-2);
+}
+
+/*
+ * Mobile portrait safeguards.
+ * Keep desktop/tablet layout unchanged and only relax fixed widths that can
+ * push cards outside the viewport on narrow phones.
+ */
+@media (max-width: 639px) {
+  .ps-btn {
+    padding: 9px 12px;
+    text-align: center;
+  }
+
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+  }
+
+  /* Home branding: logo + title must stack instead of requiring 540+ px. */
+  [class="mt-2 flex items-center gap-4"] {
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  [class~="min-w-[220px]"],
+  [class~="min-w-[320px]"] {
+    min-width: 0 !important;
+    max-width: 100%;
+  }
+
+  [class="min-w-[320px]"] {
+    width: 100%;
+  }
+
+  [class="min-w-[320px]"] .text-3xl {
+    font-size: 1.5rem;
+    line-height: 1.2;
+  }
+
+  /* Home cards: stack the admin action / contribution QR on portrait. */
+  [class="ps-card p-6"] > [class="flex items-start justify-between gap-4"] {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  /* The three homepage statistics are unreadable when forced into 3 columns. */
+  [class="mt-6 grid grid-cols-3 gap-3"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Account page uses inline fixed desktop dimensions. Relax them on phones. */
+  [style*="grid-template-columns"][style*="190px"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  [style*="min-width"][style*="320px"] {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  [style*="margin-left"][style*="200px"] {
+    margin-left: 0 !important;
+  }
 }
