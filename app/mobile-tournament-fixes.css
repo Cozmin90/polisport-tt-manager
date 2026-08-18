@@ -1,0 +1,32 @@
+@media (max-width: 639px) {
+  /* Tournament/group/KO match grids currently use inline minmax(320px, 1fr)
+     definitions. On portrait phones this can force the grid wider than its card.
+     Collapse those grids to a single fluid column on small screens. */
+  [style*="minmax(320px, 1fr)"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  [style*="minmax(320px, 1fr)"] > * {
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  /* Match cards have a name block and score/actions in a flex row.
+     Allow that row to wrap instead of widening the parent card. */
+  [style*="minmax(320px, 1fr)"] > * > div[style*="display: flex"] {
+    flex-wrap: wrap !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  [style*="minmax(320px, 1fr)"] > * > div[style*="display: flex"] > * {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow-wrap: anywhere;
+  }
+}
