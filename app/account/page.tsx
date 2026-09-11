@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
+import PrivacySettings from "../../components/PrivacySettings";
 
 type PlayerRow = {
     id: string;
@@ -557,6 +558,8 @@ export default function AccountPage() {
                     </Link>
                 </div>
             </div>
+
+            {authUid ? <PrivacySettings key={authUid} userId={authUid} /> : null}
 
             {errorText ? (
                 <div style={{ ...card, borderColor: "#6a0000" }}>

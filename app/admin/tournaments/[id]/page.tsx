@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../../../lib/supabaseClient";
+import TournamentPrivacy from "../../../../components/TournamentPrivacy";
 
 type TournamentFormat = "LOWER_UPPER_KO" | "GROUPS_KO";
 
@@ -2274,6 +2275,8 @@ export default function AdminTournamentPage() {
                             </div>
                         </div>
                     </header>
+
+                    <TournamentPrivacy tournamentId={tournamentId} />
 
                     {/* CONTROALE (secondary) */}
                     <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>

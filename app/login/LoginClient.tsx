@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
+import { MEDIA_LABEL, NOTICE_LABEL, PRIVACY_VERSION } from "../../lib/privacy";
 
 type Mode = "login" | "register";
 
@@ -35,6 +36,8 @@ export default function LoginClient() {
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [noticeRead, setNoticeRead] = useState(false);
+    const [mediaConsent, setMediaConsent] = useState(false);
 
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
@@ -84,6 +87,7 @@ export default function LoginClient() {
     }
 
     async function doRegister() {
+        if (!noticeRead) return setMsg("Te rugăm să citești informarea privind datele personale și să confirmi că ai luat cunoștință de aceasta.");
         if (!lastName.trim()) return setMsg("Te rog completează Nume.");
         if (!firstName.trim()) return setMsg("Te rog completează Prenume.");
 
@@ -104,6 +108,9 @@ export default function LoginClient() {
                     display_name: `${firstName} ${lastName}`.trim(),
                     has_amatur_account: hasAmatur,
                     amatur_mp: mp,
+                    privacy_version: PRIVACY_VERSION,
+                    privacy_notice_read: noticeRead,
+                    media_consent: mediaConsent,
                 },
             },
         });
@@ -124,6 +131,8 @@ export default function LoginClient() {
         setBusy(true);
         try {
             mode === "login" ? await doLogin() : await doRegister();
+        } catch {
+            setMsg("Operațiunea nu a reușit. Te rugăm să încerci din nou.");
         } finally {
             setBusy(false);
         }
@@ -207,6 +216,16 @@ export default function LoginClient() {
                         </Link>
                     </div>
                 )}
+
+                {mode === "register" ? (
+                    <fieldset disabled={busy} style={{ display: "grid", gap: 14, border: "1px solid #888", padding: 14, borderRadius: 12 }}>
+                        <legend>Date personale și foto-video</legend>
+                        <Link href="/privacy" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>Citește informarea (filă nouă)</Link>
+                        <label style={{ display: "flex", gap: 10, alignItems: "flex-start" }}><input type="checkbox" required checked={noticeRead} onChange={(event) => setNoticeRead(event.target.checked)} /><span>{NOTICE_LABEL}</span></label>
+                        <label style={{ display: "flex", gap: 10, alignItems: "flex-start" }}><input type="checkbox" checked={mediaConsent} onChange={(event) => setMediaConsent(event.target.checked)} /><span>{MEDIA_LABEL} <strong>Opțional.</strong></span></label>
+                        <p style={{ fontSize: 13 }}>Poți crea contul și participa fără acord foto-video. Îl poți modifica ulterior din Contul meu.</p>
+                    </fieldset>
+                ) : null}
 
                 <button
                     onMouseEnter={() => setBtnHover(true)}
