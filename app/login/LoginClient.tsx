@@ -219,10 +219,11 @@ export default function LoginClient() {
 
                 {mode === "register" ? (
                     <fieldset disabled={busy} style={{ display: "grid", gap: 14, border: "1px solid #888", padding: 14, borderRadius: 12 }}>
-                        <legend>Date personale și foto-video</legend>
+                        <legend>Date cu caracter personal și foto-video</legend>
                         <Link href="/privacy" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>Citește informarea (filă nouă)</Link>
                         <label style={{ display: "flex", gap: 10, alignItems: "flex-start" }}><input type="checkbox" required checked={noticeRead} onChange={(event) => setNoticeRead(event.target.checked)} /><span>{NOTICE_LABEL}</span></label>
-                        <label style={{ display: "flex", gap: 10, alignItems: "flex-start" }}><input type="checkbox" checked={mediaConsent} onChange={(event) => setMediaConsent(event.target.checked)} /><span>{MEDIA_LABEL} <strong>Opțional.</strong></span></label>
+                        <p style={{ fontSize: 14, fontWeight: 700 }}>Fotografii și filmări — tu alegi dacă îți dai acordul</p>
+                        <label style={{ display: "flex", gap: 10, alignItems: "flex-start" }}><input type="checkbox" checked={mediaConsent} onChange={(event) => setMediaConsent(event.target.checked)} /><span>{MEDIA_LABEL}</span></label>
                         <p style={{ fontSize: 13 }}>Poți crea contul și participa fără acord foto-video. Îl poți modifica ulterior din Contul meu.</p>
                     </fieldset>
                 ) : null}

@@ -1,22 +1,28 @@
 import Link from "next/link";
-import { MEDIA_LABEL, PRIVACY_VERSION } from "../../lib/privacy";
 
 export default function PrivacyPage() {
-    return <main style={{ maxWidth: 850, margin: "0 auto", padding: 24, lineHeight: 1.7 }}>
+    const heading = { fontSize: 21, fontWeight: 700, marginTop: 28, marginBottom: 12 };
+    return <main style={{ maxWidth: 800, margin: "0 auto", padding: 24, lineHeight: 1.75 }}>
         <Link href="/account" style={{ textDecoration: "underline" }}>← Contul meu</Link>
-        <h1 style={{ fontSize: 28, fontWeight: 800, marginTop: 20 }}>Date personale și foto-video</h1>
-        <p>Informare privind opțiunile din platforma PoliSport Table Tennis · Versiunea {PRIVACY_VERSION}</p>
-        <h2 style={{ fontSize: 21, fontWeight: 700, marginTop: 24 }}>Contul și participarea</h2>
-        <p>Platforma utilizează datele contului și ale profilului pentru autentificare, înscrieri, organizarea competițiilor și gestionarea rezultatelor și clasamentelor. Profilul sportiv, rezultatele și clasamentele sunt vizibile pe site. Confirmarea citirii acestei informări nu reprezintă un acord nelimitat pentru utilizarea datelor tale.</p>
-        <p>Opțiunea foto-video privește exclusiv utilizările descrise mai jos. Retragerea ei nu șterge automat contul, înscrierile sau rezultatele sportive. Pentru acces, rectificare, ștergere, restricționare sau opoziție privind datele personale, adresează o solicitare organizatorului; cererile se analizează potrivit drepturilor și temeiurilor aplicabile.</p>
-        <h2 style={{ fontSize: 21, fontWeight: 700, marginTop: 24 }}>Fotografii și filmări</h2>
-        <p>Evenimentele PoliSport Table Tennis sunt, de regulă, fotografiate și filmate pentru promovarea mișcării, a fair-play-ului, a comunității universitare, a POLITEHNICII București și a Clubului Sportiv Știința București.</p>
-        <p>Acordul opțional din cont are următorul conținut:</p>
-        <blockquote style={{ borderLeft: "3px solid #888", paddingLeft: 16 }}>{MEDIA_LABEL}</blockquote>
-        <p>Căsuța nu este bifată în prealabil. Poți refuza sau retrage acordul din cont, fără a pierde dreptul de participare. Retragerea este înregistrată imediat după salvare și este vizibilă administratorilor. La sosirea la competiție, te rugăm să reamintești organizatorului preferința ta, pentru a facilita respectarea ei; această informare verbală nu este o condiție a retragerii.</p>
-        <p>Retragerea privește utilizările bazate pe acest consimțământ și nu afectează legalitatea utilizărilor anterioare retragerii. Pentru materiale deja publicate, poți solicita organizatorului analizarea situației. În cazul minorilor, organizatorul stabilește condițiile de informare și acord ale reprezentantului legal; o bifă din cont nu înlocuiește verificările necesare.</p>
-        <h2 style={{ fontSize: 21, fontWeight: 700, marginTop: 24 }}>Evidența opțiunilor</h2>
-        <p>Platforma păstrează opțiunea, data înregistrării și versiunea textului, pentru evidența acordării sau retragerii. Istoricul poate fi consultat de titularul contului și de administratorii autorizați; nu este afișat în profilul public.</p>
-        <p>Pentru solicitări, contactează organizatorul competiției prin canalul de contact anunțat pentru eveniment. Vezi și <Link href="/info" style={{ textDecoration: "underline" }}>regulamentul</Link>.</p>
+        <h1 style={{ fontSize: 28, fontWeight: 800, marginTop: 20 }}>Cum folosim datele și imaginile tale</h1>
+        <p style={{ marginTop: 12 }}>În cont ai două bife cu roluri diferite: prima confirmă că ai citit cum folosim datele tale cu caracter personal; a doua arată dacă ești de acord cu fotografierea, filmarea și publicarea imaginilor de la competiții.</p>
+        <h2 style={heading}>1. Datele tale cu caracter personal</h2>
+        <p>Folosim numele, adresa de e-mail și informațiile din profil pentru a-ți crea contul și a gestiona participarea la competiții. Rezultatele sportive sunt folosite pentru clasamente.</p>
+        <p style={{ marginTop: 12 }}>Profilul sportiv, rezultatele și clasamentele pot fi văzute pe site. Opțiunea ta foto-video nu este afișată în profilul public.</p>
+        <p style={{ marginTop: 12 }}>Prima bifă înseamnă „Am citit aceste informații”. După confirmare, rămâne bifată. Nu este un acord pentru orice folosire a datelor tale.</p>
+        <p style={{ marginTop: 12 }}>Dacă vrei să afli ce date avem despre tine, să corectezi o informație sau să ceri ștergerea unor date, contactează organizatorul. Acesta îți va explica ce poate modifica sau șterge și dacă există date care trebuie păstrate pentru evidența competițiilor.</p>
+        <h2 style={heading}>2. Fotografiile și filmările de la competiții</h2>
+        <p>De regulă, fotografiem și filmăm competițiile și festivitățile de premiere. Folosim aceste materiale pentru a promova sportul, fair-play-ul, comunitatea universitară și activitățile PoliSport Table Tennis, POLITEHNICII București și Clubului Sportiv Știința București.</p>
+        <p style={{ marginTop: 12 }}>Dacă bifezi acordul foto-video, ești de acord să apari în aceste fotografii și filmări și să le publicăm pe paginile și canalele oficiale ale organizațiilor menționate.</p>
+        <p style={{ marginTop: 12 }}><strong>Tu alegi dacă îți dai acordul. Poți crea un cont și participa la competiții și fără această bifă.</strong></p>
+        <h2 style={heading}>Dacă te răzgândești</h2>
+        <p>Debifează acordul foto-video din Contul meu. După salvare, organizatorul vede că nu mai ai un acord activ. Contul și participarea ta la competiții rămân disponibile.</p>
+        <p style={{ marginTop: 12 }}>La următoarea competiție, te rugăm să îi spui și organizatorului la sosire, ca să poată anunța echipa foto-video. Retragerea este deja salvată în platformă; nu trebuie să aștepți confirmarea lui.</p>
+        <p style={{ marginTop: 12 }}>Din acel moment, nu mai folosim acordul retras pentru fotografii, filmări sau publicări noi. Materialele deja publicate nu dispar automat. Dacă dorești eliminarea unui material în care apari, contactează organizatorul.</p>
+        <p style={{ marginTop: 12 }}>Debifarea acordului foto-video nu este o cerere de ștergere a contului sau a rezultatelor sportive. Pentru acestea, trimite o solicitare separată organizatorului.</p>
+        <h2 style={heading}>Ce păstrăm despre alegerea ta</h2>
+        <p>Păstrăm doar opțiunea actuală pentru fiecare bifă și data ultimei modificări, împreună cu versiunea explicațiilor la care se referă. Nu păstrăm lista bifărilor și debifărilor anterioare. Aceste informații sunt vizibile doar pentru tine și administratorii autorizați.</p>
+        <p style={{ marginTop: 12 }}>Pentru participanții minori, organizatorul discută în prealabil cu reprezentantul legal despre fotografii și filmări, inclusiv despre acordul necesar.</p>
+        <p style={{ marginTop: 24 }}>Pentru întrebări sau solicitări, folosește datele de contact ale organizatorului anunțate pentru competiție. Vezi și <Link href="/info" style={{ textDecoration: "underline" }}>regulamentul</Link>.</p>
     </main>;
 }

@@ -1,4 +1,13 @@
-# Privacy preferences
+# Privacy preferences — current choices only
+
+The follow-up `supabase/sql/privacy_latest_only.sql` supersedes the original
+history retention described below. Apply it after the initial schema. It retains
+the latest row for each user/kind, then atomically replaces that row on each new
+choice. A transaction lock serializes concurrent changes and a unique constraint
+prevents multiple current rows. Failed writes roll back the replacement. The
+account displays only the current choice and last change date. The editorial
+rewrite explains personal data and media separately without widening consent.
+The original implementation notes below document the initial migration only.
 
 Version `2026-09-11.1` is defined in `lib/privacy.ts` and explained at `/privacy`.
 The notice checkbox records acknowledgement, not blanket consent. Media consent

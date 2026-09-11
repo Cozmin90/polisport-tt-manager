@@ -25,6 +25,12 @@ begin
  insert into public.privacy_events(user_id,kind,accepted,version) values
  (current_setting('privacy.test_uid')::uuid,'media',false,'2026-09-11.1');
  if (select accepted from public.privacy_preferences where user_id=current_setting('privacy.test_uid')::uuid and kind='media') then raise exception 'Withdrawal not current'; end if;
+ if (select count(*) from public.privacy_events where user_id=current_setting('privacy.test_uid')::uuid and kind='media') <> 1 then raise exception 'Old choices retained'; end if;
+ begin
+  insert into public.privacy_events(user_id,kind,accepted,version) values(current_setting('privacy.test_uid')::uuid,'media',true,'invalid');
+  raise exception 'Invalid version accepted';
+ exception when check_violation then null; end;
+ if (select count(*) from public.privacy_events where user_id=current_setting('privacy.test_uid')::uuid and kind='media' and accepted=false) <> 1 then raise exception 'Failed save erased choice'; end if;
  begin
   insert into public.privacy_events(user_id,kind,accepted,version) values(current_setting('privacy.test_other')::uuid,'media',true,'2026-09-11.1');
   raise exception 'Cross-user insert allowed';
@@ -55,7 +61,7 @@ do $$ begin
 end $$;
 select set_config('request.jwt.claim.sub',current_setting('privacy.test_admin'),true);
 do $$ begin
- if (select count(*) from public.privacy_events where user_id=current_setting('privacy.test_uid')::uuid) <> 3 then raise exception 'Admin read failed'; end if;
+ if (select count(*) from public.privacy_events where user_id=current_setting('privacy.test_uid')::uuid) <> 2 then raise exception 'Admin read failed'; end if;
 end $$;
 set local role anon;
 do $$ begin

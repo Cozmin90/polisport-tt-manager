@@ -19,7 +19,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     if(method==='POST') {
      if(failure) return respond({message:'Simulated failure'},500);
      const event={...route.request().postDataJSON(),id:events.length+1,created_at:new Date().toISOString()};
-     events.unshift(event); return respond(event,201);
+     events = [event, ...events.filter(previous=>previous.kind!==event.kind)]; return respond(event,201);
     }
     return respond(events);
    }
@@ -27,7 +27,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
    return respond([]);
   });
   await page.goto('http://localhost:3100/login?mode=register');
-  const notice=page.getByRole('checkbox',{name:/Am luat cunoștință/});
+  const notice=page.getByRole('checkbox',{name:/Am citit cum/});
   const media=page.getByRole('checkbox',{name:/Sunt de acord să fiu/});
   assert.equal(await notice.isChecked(),false); assert.equal(await media.isChecked(),false);
   assert.equal(await notice.getAttribute('required'),''); assert.equal(await media.getAttribute('required'),null);
@@ -50,7 +50,10 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   await page.reload(); await page.getByText('Fără acord foto-video',{exact:true}).first().waitFor();
   assert.equal(await accountMedia.isChecked(),false);
   failure=true; await accountMedia.click(); await page.getByRole('status').filter({hasText:'Salvarea nu a reușit'}).waitFor();
-  assert.equal(await accountMedia.isChecked(),false); assert.equal(events.length,2);
+  assert.equal(await accountMedia.isChecked(),false); assert.equal(events.length,1);
+  assert.equal(await page.getByText('Istoricul opțiunilor').count(),0);
+  await page.getByText(/Ultima modificare:/).waitFor();
+  assert.equal(await page.getByText('Opțional.',{exact:true}).count(),0);
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:process.env.PRIVACY_SCREENSHOT || 'privacy-mobile.png',fullPage:true});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true);
