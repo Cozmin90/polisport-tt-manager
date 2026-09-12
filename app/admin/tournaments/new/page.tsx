@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import TableCountField from "@/components/TableCountField";
+import { parseTableCount } from "@/lib/groupPlanning";
 
 type TournamentCategory = "ALL" | "HOBBY" | "ADVANCED" | "ELITE";
 type TournamentFormat = "LOWER_UPPER_KO" | "GROUPS_KO";
@@ -38,6 +40,7 @@ export default function NewTournamentPage() {
     const router = useRouter();
 
     const [title, setTitle] = useState("");
+    const [tableCount, setTableCount] = useState("");
     const [startAtLocal, setStartAtLocal] = useState(""); // datetime-local string
     const [location, setLocation] = useState("");
     const [maxPlayers, setMaxPlayers] = useState<string>(""); // păstrăm ca string pt input
@@ -83,6 +86,9 @@ export default function NewTournamentPage() {
         e.preventDefault();
         setErrMsg(null);
         setOkMsg(null);
+        let parsedTables: number | null;
+        try { parsedTables = parseTableCount(tableCount); }
+        catch (error) { setErrMsg((error as Error).message); return; }
 
         const t = title.trim();
         if (t.length < 3) {
@@ -130,6 +136,7 @@ export default function NewTournamentPage() {
                 start_at: toIsoFromDatetimeLocal(startAtLocal),
                 location: location.trim() === "" ? null : location.trim(),
                 max_players: maxPlayersInt,
+                table_count: parsedTables,
                 registration_open: registrationOpen,
                 format,
                 status: "UPCOMING", // poți lăsa și default în DB; e ok și explicit
@@ -239,6 +246,9 @@ export default function NewTournamentPage() {
                         Minim 3 caractere.
                     </div>
                 </div>
+
+                <TableCountField value={tableCount} onChange={setTableCount} players={Number(maxPlayers)} disabled={submitting} />
+                <p style={{ fontSize: 12 }}>Estimarea folosește numărul maxim de jucători. La generare se folosesc participanții înscriși efectiv.</p>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     <div style={{ display: "grid", gap: 6 }}>

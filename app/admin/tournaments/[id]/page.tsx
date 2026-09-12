@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../../../../lib/supabaseClient";
 import TournamentPrivacy from "../../../../components/TournamentPrivacy";
+import TableCountField from "../../../../components/TableCountField";
+import { chooseGroupCount, buildGroupSizes, parseTableCount, describeGroupPlan } from "../../../../lib/groupPlanning";
 
 type TournamentFormat = "LOWER_UPPER_KO" | "GROUPS_KO";
 
@@ -96,32 +98,6 @@ function parseScore(score: string | null): { a: number; b: number } | null {
     return { a: parseInt(m[1], 10), b: parseInt(m[2], 10) };
 }
 
-function chooseGroupCount(N: number, minSize: number, maxSize: number, preferred: number) {
-    const candidates: number[] = [];
-    for (let G = 1; G <= N; G++) if (minSize * G <= N && N <= maxSize * G) candidates.push(G);
-    if (candidates.length === 0) return null;
-
-    let bestG = candidates[0];
-    let bestScore = Number.POSITIVE_INFINITY;
-    for (const G of candidates) {
-        const base = Math.floor(N / G);
-        const extra = N % G;
-        const score = extra * Math.abs(base + 1 - preferred) + (G - extra) * Math.abs(base - preferred);
-        if (score < bestScore) {
-            bestScore = score;
-            bestG = G;
-        }
-    }
-    return bestG;
-}
-
-function buildGroupSizes(N: number, G: number) {
-    const base = Math.floor(N / G);
-    const extra = N % G;
-    const sizes: number[] = [];
-    for (let i = 0; i < G; i++) sizes.push(i < extra ? base + 1 : base);
-    return sizes;
-}
 
 function rankWithMiniTable(
     members: { player_id: string; full_name: string }[],
@@ -687,6 +663,9 @@ export default function AdminTournamentPage() {
 
     // ✅ pentru locuri libere
     const [maxPlayers, setMaxPlayers] = useState<number | null>(null);
+    const [tableCount, setTableCount] = useState<number | null>(null);
+    const [tableDraft, setTableDraft] = useState("");
+    const [savingTables, setSavingTables] = useState(false);
 
     // ✅ listă participanți (tabel)
     const [participants, setParticipants] = useState<{ id: string; name: string; mp: number; mpMax: number; mpReg: number; category: PlayerCat; present: boolean | null; attended: boolean | null; regStatus: string; absence: "AM" | "AN" | null }[]>([]);
@@ -938,7 +917,7 @@ export default function AdminTournamentPage() {
 
         const { data: t } = await supabase
             .from("tournaments")
-            .select("title,format,status,registration_open,max_players,places_saved_at,is_rated,is_upb_championship,championship_season,championship_stage")
+            .select("title,format,status,registration_open,max_players,table_count,places_saved_at,is_rated,is_upb_championship,championship_season,championship_stage")
             .eq("id", tournamentId)
             .single();
 
@@ -947,6 +926,8 @@ export default function AdminTournamentPage() {
         setTournamentStatus(t?.status ?? "UPCOMING");
         setRegistrationOpen(!!t?.registration_open);
         setMaxPlayers(typeof t?.max_players === "number" ? t.max_players : null);
+        setTableCount(t?.table_count ?? null);
+        setTableDraft(t?.table_count == null ? "" : String(t.table_count));
         setIsRated((t as any)?.is_rated !== false);
         setIsUpbChampionship(!!(t as any)?.is_upb_championship);
         setChampionshipSeason(String((t as any)?.championship_season ?? ""));
@@ -1383,7 +1364,7 @@ export default function AdminTournamentPage() {
 
         const N = uniq.length;
         if (N < 3) return
-        const G = chooseGroupCount(N, 3, 4, 3);
+        const G = chooseGroupCount(N, 3, 4, 3, tableCount);
         if (!G) return
         const sizes = buildGroupSizes(N, G);
         const shuffled = [...uniq].sort(() => Math.random() - 0.5);
@@ -1586,7 +1567,9 @@ export default function AdminTournamentPage() {
         if (N < 3) return alert("Ai nevoie de minim 3 participanți REGISTERED.");
         if (groupsLower.length > 0 || matchesLower.length > 0) return
         // încearcă grupe 4–6
-        const G = chooseGroupCount(N, 4, 6, 5);
+        const G = chooseGroupCount(N, 4, 6, 5, tableCount);
+        if (tableDraft !== (tableCount === null ? "" : String(tableCount))) return alert("Salvează numărul de mese înainte de generarea grupelor.");
+        if (G && tableCount && G > tableCount && !window.confirm(describeGroupPlan(N, tableCount) + "\nContinui generarea?")) return;
 
         // seed list: descrescător MP (deja e sortat)
         const seedIds = activeParticipants.map((p) => p.id);
@@ -2437,6 +2420,21 @@ export default function AdminTournamentPage() {
                                 <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>Sortare: descrescător după MP (la egalitate, alfabetic).</div>
                             </div>
                         )}
+                    </section>
+
+                    <section style={{ marginTop: 16, padding: 16, border: "1px solid #ddd", borderRadius: 12 }}>
+                        <TableCountField value={tableDraft} onChange={setTableDraft} players={activeParticipants.length} disabled={savingTables || groupsLower.length > 0 || matchesLower.length > 0} />
+                        <p style={{ fontSize: 13, marginTop: 8 }}>Mese salvate: {tableCount ?? "nespecificat"}. Numărul poate fi modificat până la generarea grupelor.</p>
+                        <button type="button" disabled={savingTables || groupsLower.length > 0 || matchesLower.length > 0} style={{ padding: "10px 14px", marginTop: 10, border: "1px solid #aaa", borderRadius: 8 }} onClick={async () => {
+                            setSavingTables(true);
+                            try {
+                                const count = parseTableCount(tableDraft);
+                                const { data, error } = await supabase.from("tournaments").update({ table_count: count }).eq("id", tournamentId).select("table_count").single();
+                                if (error) throw error;
+                                setTableCount(data.table_count); setTableDraft(data.table_count === null ? "" : String(data.table_count));
+                            } catch (error) { alert("Numărul de mese nu a fost salvat: " + (error as Error).message); }
+                            finally { setSavingTables(false); }
+                        }}>{savingTables ? "Se salvează…" : "Salvează numărul de mese"}</button>
                     </section>
 
                     {/* ✅ CTA: 1-click */}
