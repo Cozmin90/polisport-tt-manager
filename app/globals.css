@@ -61,6 +61,22 @@ body {
 }
 
 /*
+ * Homepage promotional card.
+ * BrandingEnhancer mounts the active promotion as this direct child of the
+ * existing contribution card. While it exists, hide the original donation
+ * content (including QR/IBAN/stats) so the promotion truly replaces it.
+ * When the promotion is disabled/expired the mounted child disappears and
+ * the original contribution card is restored automatically.
+ */
+.ps-card:has(> .p-6.h-full.flex.flex-col.justify-center) > :not(.p-6.h-full.flex.flex-col.justify-center) {
+  display: none !important;
+}
+
+.ps-card:has(> .p-6.h-full.flex.flex-col.justify-center) > .p-6.h-full.flex.flex-col.justify-center {
+  min-height: 100% !important;
+}
+
+/*
  * Mobile portrait safeguards.
  * Keep desktop/tablet layout unchanged and only relax fixed widths that can
  * push cards outside the viewport on narrow phones.
