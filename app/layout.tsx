@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import BrandingEnhancer from "../components/BrandingEnhancer";
+import PromoLayoutFix from "../components/PromoLayoutFix";
 import "./globals.css";
 import "./mobile-tournament-fixes.css";
 
@@ -25,7 +27,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="color-scheme" content="light" />
         <meta name="theme-color" content="#f3f4f6" />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>{children}</body>
+      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+        {children}
+        <BrandingEnhancer />
+        <PromoLayoutFix />
+      </body>
     </html>
   );
 }

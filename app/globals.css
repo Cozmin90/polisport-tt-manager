@@ -61,6 +61,12 @@ body {
 }
 
 /*
+ * Promotional-card visibility is handled by PromoLayoutFix.
+ * Do not hide all original card children here: the statistics block must stay
+ * visible while only the original donation/IBAN/QR block is replaced.
+ */
+
+/*
  * Mobile portrait safeguards.
  * Keep desktop/tablet layout unchanged and only relax fixed widths that can
  * push cards outside the viewport on narrow phones.
