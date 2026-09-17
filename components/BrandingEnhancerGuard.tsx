@@ -1,10 +1,28 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import BrandingEnhancer from "./BrandingEnhancer";
 
 export default function BrandingEnhancerGuard() {
   const pathname = usePathname();
+
+  useEffect(() => {
+    const updateSponsorLabels = () => {
+      const nodes = Array.from(document.querySelectorAll<HTMLElement>("span"));
+      for (const node of nodes) {
+        if (node.textContent?.trim() === "Cu sprijinul") {
+          node.textContent = "SPONSORII ACESTEI EDIȚII:";
+          node.style.color = "var(--ps-primary)";
+        }
+      }
+    };
+
+    updateSponsorLabels();
+    const observer = new MutationObserver(updateSponsorLabels);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [pathname]);
 
   if (pathname === "/admin/tournaments/new") {
     return (
