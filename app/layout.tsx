@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import BrandingEnhancer from "../components/BrandingEnhancer";
+import BrandingEnhancerGuard from "../components/BrandingEnhancerGuard";
 import PromoLayoutFix from "../components/PromoLayoutFix";
 import "./globals.css";
 import "./mobile-tournament-fixes.css";
@@ -29,7 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         {children}
-        <BrandingEnhancer />
+        <BrandingEnhancerGuard />
         <PromoLayoutFix />
       </body>
     </html>
