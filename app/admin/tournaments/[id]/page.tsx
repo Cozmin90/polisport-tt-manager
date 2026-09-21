@@ -813,6 +813,47 @@ export default function AdminTournamentPage() {
         await load();
     }
 
+    async function withdrawParticipant(playerId: string) {
+        const playerName = participants.find((p) => p.id === playerId)?.name ?? "Jucătorul";
+
+        // După generarea structurii competiției, retragerea ar lăsa grupe/meciuri inconsistente.
+        if (groupsLower.length > 0 || groupsUpper.length > 0 || matchesLower.length > 0 || matchesUpper.length > 0 || matchesKO.length > 0) {
+            alert(
+                "Nu poți retrage administrativ un participant după ce au fost generate grupele sau meciurile.\n\n" +
+                "Dacă este înainte de start, resetează mai întâi structura competiției; dacă turneul a început, folosește marcarea absenței."
+            );
+            return;
+        }
+
+        const ok = window.confirm(
+            `Retragi pe ${playerName} din acest turneu?\n\nLocul lui va deveni imediat disponibil pentru alt participant. Retragerea nu aplică penalizare.`
+        );
+        if (!ok) return;
+
+        const now = new Date().toISOString();
+        const { error } = await supabase
+            .from("registrations")
+            .update({
+                status: "WITHDRAWN",
+                withdrawn_at: now,
+                present: null,
+                attended: null,
+                no_show_penalty: 0,
+                penalty_applied: 0,
+                penalty_reason: null,
+            } as any)
+            .eq("tournament_id", tournamentId)
+            .eq("player_id", playerId)
+            .eq("status", "REGISTERED");
+
+        if (error) {
+            alert("Eroare la retragerea participantului: " + error.message);
+            return;
+        }
+
+        await load();
+    }
+
     // Revenire (demarcare) a absenței: revine la starea "neconfirmat" (null) și șterge penalizarea no-show.
     async function clearAbsence(playerId: string) {
         const { error: upErr } = await supabase
@@ -2358,6 +2399,7 @@ export default function AdminTournamentPage() {
                                             <th style={{ padding: "8px 6px", width: 120 }}>Nume Prenume</th>
                                             <th style={{ padding: "8px 6px", width: 120 }}>Categorie</th>
                                             <th style={{ padding: "8px 6px", width: 180 }}>Absență</th>
+                                            <th style={{ padding: "8px 6px", width: 130 }}>Administrare</th>
                                             <th style={{ padding: "8px 6px", width: 90, textAlign: "right" }}>MP</th>
                                         </tr>
                                     </thead>
@@ -2410,6 +2452,23 @@ export default function AdminTournamentPage() {
                                                             <span style={{ fontSize: 12, opacity: 0.65 }}>—</span>
                                                         )}
                                                     </div>
+                                                </td>
+                                                <td style={{ padding: "8px 6px" }}>
+                                                    <button
+                                                        onClick={() => withdrawParticipant(p.id)}
+                                                        title="Retrage participantul și eliberează locul, fără penalizare"
+                                                        style={{
+                                                            padding: "6px 10px",
+                                                            borderRadius: 10,
+                                                            border: "1px solid #d99",
+                                                            background: "#fff7f7",
+                                                            color: "#8b1e1e",
+                                                            fontWeight: 900,
+                                                            fontSize: 12,
+                                                        }}
+                                                    >
+                                                        Retrage
+                                                    </button>
                                                 </td>
                                                 <td style={{ padding: "8px 6px", textAlign: "right" }}>{p.mpReg}</td>
                                             </tr>
