@@ -6,6 +6,7 @@ import Link from "next/link";
 import { supabase } from "../../../../lib/supabaseClient";
 import TournamentPrivacy from "../../../../components/TournamentPrivacy";
 import TableCountField from "../../../../components/TableCountField";
+import AdminPlayerEditor from "../../../../components/AdminPlayerEditor";
 import { chooseGroupCount, buildGroupSizes, parseTableCount, describeGroupPlan } from "../../../../lib/groupPlanning";
 
 type TournamentFormat = "LOWER_UPPER_KO" | "GROUPS_KO";
@@ -359,6 +360,7 @@ export default function AdminTournamentPage() {
 
     const [loading, setLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
 
     const [title, setTitle] = useState("");
     const [format, setFormat] = useState<TournamentFormat>("LOWER_UPPER_KO");
@@ -2454,21 +2456,38 @@ export default function AdminTournamentPage() {
                                                     </div>
                                                 </td>
                                                 <td style={{ padding: "8px 6px" }}>
-                                                    <button
-                                                        onClick={() => withdrawParticipant(p.id)}
-                                                        title="Retrage participantul și eliberează locul, fără penalizare"
-                                                        style={{
-                                                            padding: "6px 10px",
-                                                            borderRadius: 10,
-                                                            border: "1px solid #d99",
-                                                            background: "#fff7f7",
-                                                            color: "#8b1e1e",
-                                                            fontWeight: 900,
-                                                            fontSize: 12,
-                                                        }}
-                                                    >
-                                                        Retrage
-                                                    </button>
+                                                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                                        <button
+                                                            onClick={() => setEditingPlayerId(p.id)}
+                                                            title="Editează profilul jucătorului"
+                                                            style={{
+                                                                padding: "6px 10px",
+                                                                borderRadius: 10,
+                                                                border: "1px solid #bbb",
+                                                                background: "#111827",
+                                                                color: "white",
+                                                                fontWeight: 900,
+                                                                fontSize: 12,
+                                                            }}
+                                                        >
+                                                            Editează
+                                                        </button>
+                                                        <button
+                                                            onClick={() => withdrawParticipant(p.id)}
+                                                            title="Retrage participantul și eliberează locul, fără penalizare"
+                                                            style={{
+                                                                padding: "6px 10px",
+                                                                borderRadius: 10,
+                                                                border: "1px solid #d99",
+                                                                background: "#fff7f7",
+                                                                color: "#8b1e1e",
+                                                                fontWeight: 900,
+                                                                fontSize: 12,
+                                                            }}
+                                                        >
+                                                            Retrage
+                                                        </button>
+                                                    </div>
                                                 </td>
                                                 <td style={{ padding: "8px 6px", textAlign: "right" }}>{p.mpReg}</td>
                                             </tr>
@@ -3111,6 +3130,14 @@ export default function AdminTournamentPage() {
                     ) : null}
                 </div>
             </div>
+
+            <AdminPlayerEditor
+                playerId={editingPlayerId}
+                onClose={() => setEditingPlayerId(null)}
+                onSaved={async () => {
+                    await load();
+                }}
+            />
         </main>
     );
 }
