@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
+import AdminPlayerEditor from "../../components/AdminPlayerEditor";
 
 type PlayerRow = {
     id: string;
@@ -124,6 +125,23 @@ export default function PlayersDirectoryPage() {
     const [search, setSearch] = useState("");
     const [sort, setSort] = useState<SortKey>("mpmax_desc");
     const [activeCat, setActiveCat] = useState<"ALL" | "H" | "A" | "E">("ALL");
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            const { data: auth } = await supabase.auth.getUser();
+            const uid = auth?.user?.id;
+            if (!uid) {
+                if (!cancelled) setIsAdmin(false);
+                return;
+            }
+            const { data } = await supabase.from("players").select("is_admin").eq("id", uid).maybeSingle();
+            if (!cancelled) setIsAdmin(!!data?.is_admin);
+        })();
+        return () => { cancelled = true; };
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -377,18 +395,37 @@ export default function PlayersDirectoryPage() {
                                                     <td style={{ padding: 12, textAlign: "right" }}>{toNum(p.mp)}</td>
                                                     <td style={{ padding: 12, textAlign: "right" }}>{toNum(p.mp_max)}</td>
                                                     <td style={{ padding: 12, textAlign: "right" }}>
-                                                        <Link
-                                                            href={`/players/${p.id}`}
-                                                            style={{
-                                                                textDecoration: "none",
-                                                                padding: "8px 10px",
-                                                                borderRadius: 10,
-                                                                border: "1px solid rgba(0,0,0,0.16)",
-                                                                display: "inline-block",
-                                                            }}
-                                                        >
-                                                            Vezi profil
-                                                        </Link>
+                                                        <div style={{ display: "inline-flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                                                            <Link
+                                                                href={`/players/${p.id}`}
+                                                                style={{
+                                                                    textDecoration: "none",
+                                                                    padding: "8px 10px",
+                                                                    borderRadius: 10,
+                                                                    border: "1px solid rgba(0,0,0,0.16)",
+                                                                    display: "inline-block",
+                                                                }}
+                                                            >
+                                                                Vezi profil
+                                                            </Link>
+                                                            {isAdmin ? (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setEditingPlayerId(p.id)}
+                                                                    style={{
+                                                                        padding: "8px 10px",
+                                                                        borderRadius: 10,
+                                                                        border: "1px solid rgba(0,0,0,0.2)",
+                                                                        background: "#111827",
+                                                                        color: "white",
+                                                                        fontWeight: 800,
+                                                                        cursor: "pointer",
+                                                                    }}
+                                                                >
+                                                                    Editează
+                                                                </button>
+                                                            ) : null}
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -400,6 +437,18 @@ export default function PlayersDirectoryPage() {
                     );
                 })}
             </div>
+
+            <AdminPlayerEditor
+                playerId={editingPlayerId}
+                onClose={() => setEditingPlayerId(null)}
+                onSaved={async () => {
+                    const { data, error } = await supabase
+                        .from("players")
+                        .select("id, full_name, display_name, mp, mp_max, penalty_points, banned_until, upb_role, upb_center, upb_faculty, upb_partner_name")
+                        .order("full_name", { ascending: true });
+                    if (!error) setPlayers((data as any[]) as PlayerRow[]);
+                }}
+            />
         </div>
     );
 }
