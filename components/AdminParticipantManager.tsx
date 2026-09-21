@@ -66,8 +66,33 @@ export default function AdminParticipantManager() {
 
   async function invoke(payload: Record<string, unknown>) {
     const { data, error } = await supabase.functions.invoke("admin-participant-manager", { body: payload });
-    if (error) throw new Error(error.message || "Eroare comunicare cu serverul.");
-    if (data?.error) throw new Error(data.error);
+
+    if (error) {
+      // Supabase wraps non-2xx Edge Function responses in FunctionsHttpError.
+      // Read the actual JSON/text returned by our function so the admin sees the real cause.
+      const response = (error as any)?.context as Response | undefined;
+      if (response) {
+        try {
+          const cloned = response.clone();
+          const body = await cloned.json();
+          if (body?.error) throw new Error(String(body.error));
+          if (body?.message) throw new Error(String(body.message));
+        } catch (parsed: any) {
+          if (parsed instanceof Error && parsed.message && parsed.message !== "Unexpected end of JSON input") {
+            throw parsed;
+          }
+          try {
+            const text = await response.clone().text();
+            if (text) throw new Error(text);
+          } catch (textErr: any) {
+            if (textErr instanceof Error && textErr.message) throw textErr;
+          }
+        }
+      }
+      throw new Error(error.message || "Eroare comunicare cu serverul.");
+    }
+
+    if (data?.error) throw new Error(String(data.error));
     return data;
   }
 
