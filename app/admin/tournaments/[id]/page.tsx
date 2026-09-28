@@ -526,6 +526,34 @@ export default function AdminTournamentPage() {
         setScoreDraft((prev) => ({ ...prev, [matchId]: { a: prev[matchId]?.a ?? "", b } }));
     }
 
+    function isMatchSaved(match: MatchRow) {
+        if (!match.player1_id) return false;
+        if (!match.player2_id) return match.score === "BYE" && !!match.winner_id;
+        return !!parseScore(match.score) && !!match.winner_id;
+    }
+
+    function isMatchDirty(match: MatchRow) {
+        const d = scoreDraft[match.id];
+        if (!d) return false;
+        const persisted = parseScore(match.score);
+        const persistedA = persisted ? String(persisted.a) : "";
+        const persistedB = persisted ? String(persisted.b) : "";
+        return d.a !== persistedA || d.b !== persistedB;
+    }
+
+    function matchCardStyle(match: MatchRow, extra: React.CSSProperties = {}): React.CSSProperties {
+        const saved = isMatchSaved(match);
+        const dirty = isMatchDirty(match);
+
+        return {
+            border: dirty ? "2px solid #d6a100" : saved ? "2px solid #2e9b50" : "1px solid #eee",
+            background: dirty ? "#fff9df" : saved ? "#eefaf1" : "white",
+            boxShadow: saved && !dirty ? "0 0 0 1px rgba(46,155,80,0.08)" : undefined,
+            transition: "background 160ms ease, border-color 160ms ease",
+            ...extra,
+        };
+    }
+
     async function recomputeAndPersistGroupStandings(
         stage: "LOWER_GROUP" | "UPPER_GROUP",
         groupId: string,
@@ -2648,7 +2676,7 @@ export default function AdminTournamentPage() {
                                                                 <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 900 }}>Runda {r}</div>
                                                                 <div style={{ display: "grid", gap: 8, marginTop: 6, gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", justifyItems: "stretch", width: "100%", justifyContent: "stretch" }}>
                                                                     {roundMatches.map((m) => (
-                                                                        <div key={m.id} className="ps-card p-4">
+                                                                        <div key={m.id} className="ps-card p-4" style={matchCardStyle(m)}>
                                                                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                                                                                 <div style={{ fontSize: 14 }}>
                                                                                     <b>{m.p1?.full_name ?? "P1"}</b> vs <b>{m.p2?.full_name ?? (m.player2_id ? "P2" : "BYE")}</b>
@@ -2683,8 +2711,17 @@ export default function AdminTournamentPage() {
                                                                                             <span style={{ fontSize: 12, opacity: 0.8 }}>BYE</span>
                                                                                         )}
 
-                                                                                        <button onClick={() => saveScoreFromDraft(m)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd" }}>
-                                                                                            Save
+                                                                                        <button
+                                                                                            onClick={() => saveScoreFromDraft(m)}
+                                                                                            style={{
+                                                                                                padding: "6px 10px",
+                                                                                                borderRadius: 8,
+                                                                                                border: isMatchDirty(m) ? "1px solid #d6a100" : isMatchSaved(m) ? "1px solid #2e9b50" : "1px solid #ddd",
+                                                                                                background: isMatchDirty(m) ? "#fff3bf" : isMatchSaved(m) ? "#dcf5e3" : "white",
+                                                                                                fontWeight: 800,
+                                                                                            }}
+                                                                                        >
+                                                                                            {isMatchDirty(m) ? "Salvează" : isMatchSaved(m) ? "✓ Salvat" : "Save"}
                                                                                         </button>
                                                                                     </div>
                                                                                 )}
@@ -2818,7 +2855,7 @@ export default function AdminTournamentPage() {
                                                                         }}
                                                                     >
                                                                         {roundMatches.map((m) => (
-                                                                            <div key={m.id} className="ps-card p-4">
+                                                                            <div key={m.id} className="ps-card p-4" style={matchCardStyle(m)}>
                                                                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                                                                                     <div style={{ fontSize: 14 }}>
                                                                                         <b>{m.p1?.full_name ?? "P1"}</b> vs{" "}
@@ -2914,7 +2951,7 @@ export default function AdminTournamentPage() {
 
                                         <div style={{ display: "grid", gap: 8, gridTemplateColumns: `repeat(${(r === maxKORound && (matchesKOByRound.map[r]?.length ?? 0) === 1) ? 1 : 2}, minmax(320px, 1fr))`, justifyItems: r === maxKORound ? "center" : "stretch" }}>
                                             {matchesKOByRound.map[r].map((m) => (
-                                                <div key={m.id} style={{ border: "1px solid #eee", borderRadius: 10, padding: 10, width: r === maxKORound ? "min(520px, 100%)" : "100%" }}>
+                                                <div key={m.id} style={matchCardStyle(m, { borderRadius: 10, padding: 10, width: r === maxKORound ? "min(520px, 100%)" : "100%" })}>
                                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                                                         <div style={{ fontSize: 14 }}>
                                                             <b>{m.p1?.full_name ?? "—"}</b> <span style={{ opacity: 0.8 }}>vs</span>{" "}
@@ -2951,8 +2988,17 @@ export default function AdminTournamentPage() {
                                                                     <span style={{ fontSize: 12, opacity: 0.8 }}>BYE</span>
                                                                 )}
 
-                                                                <button onClick={() => saveScoreFromDraft(m)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd" }}>
-                                                                    Save
+                                                                <button
+                                                                    onClick={() => saveScoreFromDraft(m)}
+                                                                    style={{
+                                                                        padding: "6px 10px",
+                                                                        borderRadius: 8,
+                                                                        border: isMatchDirty(m) ? "1px solid #d6a100" : isMatchSaved(m) ? "1px solid #2e9b50" : "1px solid #ddd",
+                                                                        background: isMatchDirty(m) ? "#fff3bf" : isMatchSaved(m) ? "#dcf5e3" : "white",
+                                                                        fontWeight: 800,
+                                                                    }}
+                                                                >
+                                                                    {isMatchDirty(m) ? "Salvează" : isMatchSaved(m) ? "✓ Salvat" : "Save"}
                                                                 </button>
                                                             </div>
                                                         )}
