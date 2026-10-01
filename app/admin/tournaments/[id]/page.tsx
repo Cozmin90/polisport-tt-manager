@@ -10,6 +10,7 @@ import AdminPlayerEditor from "../../../../components/AdminPlayerEditor";
 import { chooseGroupCount, buildGroupSizes, parseTableCount, describeGroupPlan } from "../../../../lib/groupPlanning";
 
 type TournamentFormat = "LOWER_UPPER_KO" | "GROUPS_KO";
+type TournamentCategory = "ALL" | "HOBBY" | "ADVANCED" | "ELITE";
 
 // Categoria jucătorului (din MP Max)
 type PlayerCat = "HOBBY" | "ADVANCED" | "ELITE";
@@ -363,6 +364,9 @@ export default function AdminTournamentPage() {
     const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
 
     const [title, setTitle] = useState("");
+    const [category, setCategory] = useState<TournamentCategory>("ALL");
+    const [maxPlayersDraft, setMaxPlayersDraft] = useState("");
+    const [savingTournamentDetails, setSavingTournamentDetails] = useState(false);
     const [format, setFormat] = useState<TournamentFormat>("LOWER_UPPER_KO");
 
     const [rows, setRows] = useState<RegistrationRow[]>([]);
@@ -755,6 +759,51 @@ export default function AdminTournamentPage() {
     const participantCount = activeParticipants.length;
     const spotsLeft = typeof maxPlayers === "number" ? Math.max(0, maxPlayers - participantCount) : null;
 
+    async function saveTournamentDetails() {
+        const cleanTitle = title.trim();
+        if (cleanTitle.length < 3) {
+            alert("Numele turneului trebuie să aibă cel puțin 3 caractere.");
+            return;
+        }
+
+        const maxValue = maxPlayersDraft.trim() === "" ? null : Number.parseInt(maxPlayersDraft.trim(), 10);
+        if (maxValue !== null && (!Number.isFinite(maxValue) || maxValue < 2)) {
+            alert("Numărul maxim de participanți trebuie să fie gol sau cel puțin 2.");
+            return;
+        }
+
+        if (maxValue !== null && maxValue < registeredCount) {
+            alert(`Nu poți seta limita la ${maxValue}: există deja ${registeredCount} participanți înscriși. Retrage mai întâi participanții suplimentari sau setează o limită de cel puțin ${registeredCount}.`);
+            return;
+        }
+
+        setSavingTournamentDetails(true);
+        try {
+            const { data, error } = await supabase
+                .from("tournaments")
+                .update({
+                    title: cleanTitle,
+                    category,
+                    max_players: maxValue,
+                } as any)
+                .eq("id", tournamentId)
+                .select("title,category,max_players")
+                .single();
+
+            if (error) throw error;
+
+            setTitle(data?.title ?? cleanTitle);
+            setCategory(((data as any)?.category as TournamentCategory) ?? category);
+            setMaxPlayers(typeof data?.max_players === "number" ? data.max_players : null);
+            setMaxPlayersDraft(typeof data?.max_players === "number" ? String(data.max_players) : "");
+            alert("Detaliile turneului au fost actualizate.");
+        } catch (e: any) {
+            alert("Detaliile turneului nu au putut fi salvate: " + (e?.message ?? String(e)));
+        } finally {
+            setSavingTournamentDetails(false);
+        }
+    }
+
     async function setTournamentStatusSafe(next: "UPCOMING" | "LIVE" | "FINISHED" | "CANCELLED") {
         const { error } = await supabase.from("tournaments").update({ status: next }).eq("id", tournamentId);
         if (error) return alert("Eroare status: " + error.message);
@@ -988,15 +1037,17 @@ export default function AdminTournamentPage() {
 
         const { data: t } = await supabase
             .from("tournaments")
-            .select("title,format,status,registration_open,max_players,table_count,places_saved_at,is_rated,is_upb_championship,championship_season,championship_stage")
+            .select("title,format,status,registration_open,max_players,category,table_count,places_saved_at,is_rated,is_upb_championship,championship_season,championship_stage")
             .eq("id", tournamentId)
             .single();
 
         setTitle(t?.title ?? "");
+        setCategory(((t as any)?.category as TournamentCategory) ?? "ALL");
         setFormat((t?.format as TournamentFormat) ?? "LOWER_UPPER_KO");
         setTournamentStatus(t?.status ?? "UPCOMING");
         setRegistrationOpen(!!t?.registration_open);
         setMaxPlayers(typeof t?.max_players === "number" ? t.max_players : null);
+        setMaxPlayersDraft(typeof t?.max_players === "number" ? String(t.max_players) : "");
         setTableCount(t?.table_count ?? null);
         setTableDraft(t?.table_count == null ? "" : String(t.table_count));
         setIsRated((t as any)?.is_rated !== false);
@@ -2331,6 +2382,63 @@ export default function AdminTournamentPage() {
                     </header>
 
                     <TournamentPrivacy tournamentId={tournamentId} />
+
+                    <section style={{ marginTop: 14, border: "1px solid #ddd", borderRadius: 12, padding: 12, background: "white" }}>
+                        <div style={{ fontWeight: 900, marginBottom: 10 }}>Detalii turneu</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "minmax(240px, 2fr) minmax(180px, 1fr) minmax(160px, 1fr)", gap: 10 }}>
+                            <label style={{ display: "grid", gap: 5 }}>
+                                <span style={{ fontSize: 12, fontWeight: 800 }}>Nume turneu</span>
+                                <input
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
+                                    disabled={savingTournamentDetails}
+                                    style={{ padding: "9px 10px", borderRadius: 10, border: "1px solid #ddd", minWidth: 0 }}
+                                />
+                            </label>
+
+                            <label style={{ display: "grid", gap: 5 }}>
+                                <span style={{ fontSize: 12, fontWeight: 800 }}>Categorie</span>
+                                <select
+                                    value={category}
+                                    onChange={(e) => setCategory(e.target.value as TournamentCategory)}
+                                    disabled={savingTournamentDetails}
+                                    style={{ padding: "9px 10px", borderRadius: 10, border: "1px solid #ddd", background: "white", color: "#111" }}
+                                >
+                                    <option value="ALL">ALL / Open</option>
+                                    <option value="HOBBY">Hobby (&lt;20 MP Max)</option>
+                                    <option value="ADVANCED">Avansați (20–&lt;40 MP Max)</option>
+                                    <option value="ELITE">Elite (≥40 MP Max)</option>
+                                </select>
+                            </label>
+
+                            <label style={{ display: "grid", gap: 5 }}>
+                                <span style={{ fontSize: 12, fontWeight: 800 }}>Număr maxim participanți</span>
+                                <input
+                                    type="number"
+                                    min={2}
+                                    value={maxPlayersDraft}
+                                    onChange={(e) => setMaxPlayersDraft(e.target.value)}
+                                    placeholder="fără limită"
+                                    disabled={savingTournamentDetails}
+                                    style={{ padding: "9px 10px", borderRadius: 10, border: "1px solid #ddd", minWidth: 0 }}
+                                />
+                            </label>
+                        </div>
+
+                        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
+                            <button
+                                type="button"
+                                onClick={saveTournamentDetails}
+                                disabled={savingTournamentDetails}
+                                style={{ padding: "9px 13px", borderRadius: 10, border: "1px solid #bbb", background: "#111827", color: "white", fontWeight: 900 }}
+                            >
+                                {savingTournamentDetails ? "Se salvează…" : "Salvează detaliile"}
+                            </button>
+                            <span style={{ fontSize: 12, opacity: 0.72 }}>
+                                Categoria modifică eligibilitatea pentru înscrierile viitoare. Participanții deja înscriși nu sunt eliminați automat.
+                            </span>
+                        </div>
+                    </section>
 
                     {/* CONTROALE (secondary) */}
                     <section style={{ marginTop: 14, border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
