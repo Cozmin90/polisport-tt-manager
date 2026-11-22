@@ -143,8 +143,25 @@ function getUpbEligibility(params: {
     userId: string | null;
     upbRole: string | null;
     upbFaculty: string | null;
+    upbCenter: string | null;
+    upbPartnerName: string | null;
+    isAdmin: boolean;
 }) {
     const { tournament, userId, upbRole, upbFaculty } = params;
+
+    if (userId && !params.isAdmin) {
+        const role = (upbRole ?? "").trim();
+        if (role === "guest") {
+            return { eligible: false, reason: "Jucătorii invitați pot fi înscriși la turnee doar de administratori. Contactează organizatorul." };
+        }
+        if (!["student", "employee", "alumni", "partner"].includes(role)) {
+            return { eligible: false, reason: "Completează afilierea în Contul meu. Înscrierea proprie este disponibilă doar pentru studenți, angajați, alumni și parteneri UPB." };
+        }
+        if (role === "partner" ? !params.upbPartnerName?.trim() :
+            !["BUC", "PIT"].includes(params.upbCenter ?? "") || !upbFaculty?.trim()) {
+            return { eligible: false, reason: "Completează afilierea în Contul meu: centrul universitar și facultatea sau denumirea partenerului UPB." };
+        }
+    }
 
     if (!tournament.is_upb_championship) {
         return { eligible: true, reason: "" };
@@ -196,6 +213,8 @@ export default function HomePage() {
     const [userAmaturMp, setUserAmaturMp] = useState<number | null>(null);
     const [hasAmatur, setHasAmatur] = useState<boolean>(false);
     const [userUpbRole, setUserUpbRole] = useState<string | null>(null);
+    const [userUpbCenter, setUserUpbCenter] = useState<string | null>(null);
+    const [userUpbPartnerName, setUserUpbPartnerName] = useState<string | null>(null);
     const [userUpbFaculty, setUserUpbFaculty] = useState<string | null>(null);
 
     const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -234,7 +253,7 @@ export default function HomePage() {
             if (uid) {
                 const { data: p } = await supabase
                     .from("players")
-                    .select("display_name, full_name, first_name, last_name, mp, mp_max, amatur_mp, is_admin, upb_role, upb_faculty")
+                    .select("display_name, full_name, first_name, last_name, mp, mp_max, amatur_mp, is_admin, upb_role, upb_faculty, upb_center, upb_partner_name")
                     .eq("id", uid)
                     .maybeSingle();
 
@@ -259,6 +278,8 @@ export default function HomePage() {
                     const amNum = am == null ? null : Number(am);
                     setUserAmaturMp(Number.isFinite(amNum as any) ? (amNum as number) : null);
                     setHasAmatur(Number.isFinite(amNum as any));
+                    setUserUpbCenter(p.upb_center ?? null);
+                    setUserUpbPartnerName(p.upb_partner_name ?? null);
                     setUserUpbRole(((p as any).upb_role ?? null) as string | null);
                     setUserUpbFaculty(((p as any).upb_faculty ?? null) as string | null);
                 }
@@ -415,6 +436,9 @@ export default function HomePage() {
             userId,
             upbRole: userUpbRole,
             upbFaculty: userUpbFaculty,
+            upbCenter: userUpbCenter,
+            upbPartnerName: userUpbPartnerName,
+            isAdmin,
         });
 
         if (!upbEligibility.eligible) {
@@ -826,6 +850,9 @@ export default function HomePage() {
                                             userId,
                                             upbRole: userUpbRole,
                                             upbFaculty: userUpbFaculty,
+                                            upbCenter: userUpbCenter,
+                                            upbPartnerName: userUpbPartnerName,
+                                            isAdmin,
                                         });
                                         const canJoinUpb = upbEligibility.eligible;
 
@@ -941,7 +968,7 @@ export default function HomePage() {
                                                     </div>
                                                 ) : (
                                                     <>
-                                                        {t.is_upb_championship && !upbEligibility.eligible ? (
+                                                        {!upbEligibility.eligible ? (
                                                             <div
                                                                 className="mt-4 rounded-2xl border px-4 py-3 text-sm"
                                                                 style={{
@@ -950,7 +977,8 @@ export default function HomePage() {
                                                                     color: "#92400e",
                                                                 }}
                                                             >
-                                                                <b>Etapă Campionatul UPB:</b> {upbEligibility.reason}
+                                                                {upbEligibility.reason}{" "}
+                                                                <Link href="/account" className="underline font-semibold">Contul meu</Link>
                                                             </div>
                                                         ) : null}
 
