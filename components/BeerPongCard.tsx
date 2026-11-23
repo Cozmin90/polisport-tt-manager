@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { byNextStart, categoryLabels, dateLabel, editionUrl, listEditions, type ListedEdition } from "../lib/beerPong";
+import BeerPongArtwork from "./BeerPongArtwork";
+import styles from "./BeerPongCard.module.css";
 
 export default function BeerPongCard() {
   const [events, setEvents] = useState<ListedEdition[]>([]);
@@ -13,24 +15,53 @@ export default function BeerPongCard() {
       try {
         const editions = await listEditions();
         if (active) setEvents(editions.filter(e => e.state !== "closed").sort(byNextStart));
-      } catch { /* The hub remains reachable when the event list is temporarily unavailable. */ }
+      } catch { /* Keep the card reachable even if editions cannot be fetched. */ }
     }
     void load();
     const timer = window.setInterval(load, 30000);
     document.addEventListener("visibilitychange", load);
     return () => { active = false; clearInterval(timer); document.removeEventListener("visibilitychange", load); };
   }, []);
-  return <section aria-label="Competiție BeerPong" className="mt-4 rounded-2xl p-5 text-white" style={{ background: "linear-gradient(110deg,#40245b,#65355d)" }}>
-    <div className="flex flex-wrap items-baseline justify-between gap-2">
-      <Link href="/beerpong" className="text-lg font-extrabold">Competiție BeerPong</Link>
-      <Link href="/beerpong#istoric" className="text-sm underline">Istoric BeerPong</Link>
-    </div>
-    {events.length ? events.map(e => <div key={e.id} className="mt-3 border-t border-white/25 pt-2">
-      <Link href={editionUrl(e.id)} className="font-bold underline">{e.title}</Link>
-      <p className="mt-1 text-sm">{e.state === "open" ? "În joc până la " + dateLabel(e.ends) : "Începe la " + dateLabel(e.starts)}
-        {" · "}{e.categories.map(c => categoryLabels[c]).join(", ")} · {e.prize_count} {e.prize_count === 1 ? "premiu" : "premii"}</p>
-      <Link href={editionUrl(e.id)} className="mt-1 inline-block text-sm font-bold" style={{ color: "#ffe1a3" }}>
-        {e.state === "open" ? "Participă" : "Vezi ediția"} →</Link>
-    </div>) : <Link href="/beerpong" className="mt-1 block text-sm underline">Vezi competițiile</Link>}
-  </section>;
+
+  return (
+    <section aria-label="Competiție BeerPong" className={styles.card}>
+      <div className={styles.layout}>
+        <div className={styles.content}>
+          <span className={styles.kicker}>POLISPORT · ARCADE</span>
+          <h3 className={styles.title}>Competiție BeerPong</h3>
+          <p className={styles.subtitle}>O minge, o halbă și o țintă. Intră în joc, adună puncte și urcă în clasament!</p>
+          <div className={styles.actions}>
+            <Link href="/beerpong" className={styles.primary}>Descoperă BeerPong <span aria-hidden="true">↗</span></Link>
+            <Link href="/beerpong#istoric" className={styles.secondary}>Istoric și clasamente</Link>
+          </div>
+        </div>
+        <BeerPongArtwork className={styles.artwork} />
+      </div>
+
+      {events.length > 0 ? (
+        <div className={styles.editions} aria-label="Ediții BeerPong active și programate">
+          {events.slice(0, 2).map(e => (
+            <div key={e.id} className={styles.edition}>
+              <div className={styles.editionTop}>
+                <span className={e.state === "open" ? styles.status + " " + styles.statusLive : styles.status}>
+                  {e.state === "open" ? "● ÎN DESFĂȘURARE" : "◷ URMEAZĂ"}
+                </span>
+              </div>
+              <Link href={editionUrl(e.id)} className={styles.editionLink}>{e.title} <span aria-hidden="true">↗</span></Link>
+              <p className={styles.meta}>
+                {e.state === "open" ? "Deschisă până la " + dateLabel(e.ends) : "Începe la " + dateLabel(e.starts)}
+                {" · "}{e.prize_count} {e.prize_count === 1 ? "premiu" : "premii"}
+                {" · "}{e.categories.map(c => categoryLabels[c] ?? c).join(", ")}
+              </p>
+            </div>
+          ))}
+          {events.length > 2 && (
+            <div className={styles.edition}>
+              <Link className={styles.editionLink} href="/beerpong">Vezi toate cele {events.length} ediții ↗</Link>
+            </div>
+          )}
+        </div>
+      ) : <p className={styles.empty}>Următoarea ediție va fi afișată aici când este publicată.</p>}
+    </section>
+  );
 }
