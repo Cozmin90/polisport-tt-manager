@@ -831,6 +831,13 @@ export default function HomePage() {
                                 ) : null}
                             </div>
 
+                            {isAdmin && (
+                                <Link href="/admin/tombola" className="mt-4 block rounded-2xl p-5 text-white" style={{ background: "#542b66" }}>
+                                    <strong>Tombolă de test · Serva de aur</strong>
+                                    <span className="mt-1 block text-sm">Creează o ediție sau participă cu contul de administrator.</span>
+                                </Link>
+                            )}
+
                             {loading ? (
                                 <p className="mt-4 text-sm" style={{ color: "var(--ps-muted)" }}>
                                     Se încarcă...
