@@ -75,7 +75,9 @@ function CompetitionHub() {
   }
   return <main className={styles.page}>
     <header className={styles.hero}>
-      <Link href="/">← PoliSport-TT</Link>
+      <div className={styles.topline}><Link href="/">← PoliSport-TT</Link>
+        {authReady && !uid && <Link href={"/login?mode=login&beerpong=" + (valid ? selected : "1")}>Intră în cont</Link>}
+      </div>
       <h1>Competiție BeerPong</h1>
       <p>Țintește halba și adună reușite până la închiderea ediției.</p>
       <a href="#istoric">Istoric și clasamente</a>

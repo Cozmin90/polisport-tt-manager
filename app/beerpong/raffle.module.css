@@ -103,3 +103,5 @@
 .winner h3 { font-weight: 750; margin-bottom: .5rem; }
 .myRow { background: #f6f0fa; }
 .page .actionLink { display: inline-block; background: #542b66; color: white; border-radius: .55rem; padding: .65rem 1rem; text-decoration: none; font-weight: 700; }
+
+.topline { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: .5rem 1rem; }
