@@ -87,3 +87,19 @@
   .readouts { gap: .25rem; }
   .score { flex-direction: column; gap: 0; }
 }
+
+.hero a { color: #fff2d6; text-underline-offset: .2em; }
+.manage { margin: 1rem 0; }
+.page .editionForm > label, .editionForm .dates { margin: .8rem 0; }
+.page .note, .editions span { color: #53515c; font-size: .88rem; }
+.editions { list-style: none; margin: .6rem 0 0; padding: 0; }
+.editions li { display: flex; align-items: baseline; flex-wrap: wrap; gap: .3rem 1rem; justify-content: space-between; padding: .7rem 0; border-bottom: 1px solid #e8e3eb; }
+.editions li:last-child { border-bottom: 0; }
+.editions a { font-weight: 700; color: #552365; }
+.editions small { display: block; letter-spacing: 0; font-weight: 500; color: #53515c; }
+.anchor { scroll-margin-top: 1rem; }
+.notice, .winner { margin: 1rem 0; padding: .9rem 1rem; background: #fff7e5; border-left: 4px solid #bd8427; border-radius: .4rem; }
+.page .demoLabel { display: inline-block; padding: .3rem .7rem; background: #fff0ce; color: #623b00; border-radius: .5rem; font-weight: 700; }
+.winner h3 { font-weight: 750; margin-bottom: .5rem; }
+.myRow { background: #f6f0fa; }
+.page .actionLink { display: inline-block; background: #542b66; color: white; border-radius: .55rem; padding: .65rem 1rem; text-decoration: none; font-weight: 700; }

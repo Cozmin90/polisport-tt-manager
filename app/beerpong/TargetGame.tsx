@@ -89,7 +89,7 @@ export default function TargetGame({ serve, finish, initialScore, endsAt, server
     } catch (error) {
       if (mounted.current) {
         setMessage(String(error));
-        setPhase("aim");
+        setPhase(error instanceof Error && error.message.includes("aruncare nouă") ? "error" : "aim");
         locked.current = false;
       }
     }

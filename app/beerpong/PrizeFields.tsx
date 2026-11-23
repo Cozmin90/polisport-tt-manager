@@ -50,7 +50,7 @@ export default function PrizeFields({ value, onChange }: {
       <div><label htmlFor="voucher-serials">Numere personalizate (opțional)</label></div>
       <input id="voucher-serials" type="text" placeholder="De exemplu 002, 004" value={value.serials}
         onChange={event => { setPage(0); onChange({ ...value, serials: event.target.value }); }}/>
-      <p>Implicit, voucherele încep de la 001. Poți indica alte numere, în ordinea locurilor premiate.</p>
+      <p>Modelele PoliSport 001–005 sunt deja disponibile. Poți alege alte serii, în ordinea locurilor premiate, sau poți încărca propriile imagini.</p>
       {visible.map(({rank, serial}) => <div key={serial}>
         <label htmlFor={`voucher-${serial}`}>Locul {rank} · Voucher {formatSerial(serial)}</label>
         <input id={`voucher-${serial}`} type="file" accept="image/png,image/jpeg" onChange={event => {

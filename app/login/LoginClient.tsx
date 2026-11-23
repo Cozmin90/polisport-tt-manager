@@ -31,6 +31,11 @@ export default function LoginClient() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
+    const beerPongReturn = searchParams.get("beerpong");
+    const afterLogin = beerPongReturn === "1" ? "/beerpong"
+        : beerPongReturn && /^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(beerPongReturn)
+            ? "/beerpong?editie=" + beerPongReturn + "#editie" : "/";
+
     const initialMode = (searchParams.get("mode") as Mode) || "login";
     const [mode, setMode] = useState<Mode>(initialMode);
 
@@ -83,7 +88,7 @@ export default function LoginClient() {
         if (error) return setMsg(error.message);
 
         await ensurePlayerProfile();
-        router.push("/");
+        router.push(afterLogin);
     }
 
     async function doRegister() {
@@ -122,7 +127,7 @@ export default function LoginClient() {
         }
 
         await ensurePlayerProfile();
-        router.push("/");
+        router.push(afterLogin);
     }
 
     async function onSubmit(e: React.FormEvent) {
