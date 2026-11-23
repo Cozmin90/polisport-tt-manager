@@ -1,78 +1,69 @@
 "use client";
-import {useEffect, useRef, useState} from "react";
+import {useEffect,useRef,useState} from "react";
 import styles from "./raffle.module.css";
 
-type Challenge = {token:string; incoming:number; targetX:number; targetY:number};
-type Props = {
-  serve:()=>Promise<Challenge>;
-  finish:(token:string,paddle:number)=>Promise<number>;
-};
-const approach = 2400;
-const flight = 720;
-const clamp = (value:number) => Math.min(570,Math.max(30,value));
+type Table = {token:string; cups:number[]};
+type Point = [number,number];
+type Flight = {frames:Point[]; score:number; bounces:number};
+type Props = {serve:()=>Promise<Table>; finish:(token:string,angle:number,power:number)=>Promise<Flight>};
+const origin:Point=[548,238];
 
 export default function TargetGame({serve,finish}:Props){
- const [round,setRound]=useState<Challenge|null>(null);
- const [paddle,setPaddle]=useState(300);
- const [elapsed,setElapsed]=useState(0);
- const [pending,setPending]=useState(false);
- const [notice,setNotice]=useState("Pregătește paleta și pornește prima minge.");
- const position=useRef(300), contact=useRef<number|null>(null), busy=useRef(false);
- const surface=useRef<SVGSVGElement>(null), alive=useRef(true);
- const finishRef=useRef(finish);
- useEffect(()=>{finishRef.current=finish;},[finish]);
- useEffect(()=>{alive.current=true;return ()=>{alive.current=false;};},[]);
- function move(x:number){
-   if(contact.current!==null)return;
-   position.current=clamp(x);setPaddle(position.current);
- }
- async function start(){
-   if(busy.current)return;
-   busy.current=true;setPending(true);
+ const [table,setTable]=useState<Table|null>(null);
+ const [angle,setAngle]=useState(45),[power,setPower]=useState(65);
+ const [flight,setFlight]=useState<Flight|null>(null),[frame,setFrame]=useState(0);
+ const [phase,setPhase]=useState<"loading"|"aim"|"sending"|"flying"|"done"|"error">("loading");
+ const [message,setMessage]=useState("");
+ const [round,setRound]=useState(0);
+ const locked=useRef(false),mounted=useRef(true),prepare=useRef(serve);
+ useEffect(()=>{prepare.current=serve;},[serve]);
+ useEffect(()=>{mounted.current=true;return ()=>{mounted.current=false;};},[]);
+ useEffect(()=>{
+   let active=true;
+   setPhase("loading");setMessage("");setFlight(null);setTable(null);setFrame(0);
+   prepare.current().then(data=>{if(active){setTable(data);setPhase("aim");locked.current=false;}})
+     .catch(error=>{if(active){setMessage(String(error));setPhase("error");locked.current=false;}});
+   return ()=>{active=false;};
+ },[round]);
+ async function launch(){
+   if(!table||locked.current||phase!=="aim")return;
+   locked.current=true;setPhase("sending");setMessage("");
    try{
-     const next=await serve();if(!alive.current)return;
-     contact.current=null;setElapsed(0);setRound(next);setNotice("Așază paleta sub minge și orientează returul spre țintă.");surface.current?.focus();
-   }catch(error){if(alive.current){setNotice(String(error));busy.current=false;setPending(false);}}
+     const result=await finish(table.token,angle,power);
+     if(mounted.current){setFlight(result);setPhase("flying");}
+   }catch(error){if(mounted.current){setMessage(String(error));setPhase("aim");locked.current=false;}}
  }
  useEffect(()=>{
-   if(!round)return;
-   let frame=0,active=true;
-   const started=performance.now();
-   let result:Promise<string>|undefined;
+   if(!flight)return;
+   const start=performance.now(); let animation=0;
    function animate(now:number){
-     if(!round||!active)return;
-     const ms=now-started;
-     setElapsed(Math.min(ms,approach+flight));
-     if(ms>=approach && contact.current===null){
-       contact.current=position.current;
-       result=finishRef.current(round.token,contact.current)
-         .then(points=>points===100?"În centru! +100 puncte.":points?"Țintă lovită! +"+points+" puncte.":"Ratare · 0 puncte.")
-         .catch(error=>String(error));
-     }
-     if(ms<approach+flight){frame=requestAnimationFrame(animate);return;}
-     void result?.then(message=>{if(active){setNotice(message);busy.current=false;setPending(false);}});
+     if(!flight)return;
+     const last=flight.frames.length-1;
+     const index=Math.min(last,Math.floor((now-start)*0.06));setFrame(index);
+     if(index<last){animation=requestAnimationFrame(animate);return;}
+     setPhase("done");locked.current=false;
+     setMessage(flight.score===100?"În pahar după ricoșeu! +100 puncte.":flight.score===60?"Direct în pahar! +60 puncte.":"Mingea a ratat paharele. 0 puncte.");
    }
-   frame=requestAnimationFrame(animate);
-   return ()=>{active=false;cancelAnimationFrame(frame);};
- },[round]);
- const x=round?.incoming??300, tx=round?.targetX??300, ty=round?.targetY??100;
- const dx=x-paddle, touching=Math.abs(dx)<=34;
- const returning=elapsed>=approach;
- const progress=Math.max(0,Math.min(1,(elapsed-approach)/flight));
- const y=returning?(touching?360-progress*(360-ty):360+progress*75):40+320*elapsed/approach;
- const ballX=returning&&touching?x+dx/34*1.9*(360-y):x;
- const flash=round&&progress===1&&touching&&Math.abs(ballX-tx)<=30;
- return <div className={styles.game}>
- <p>Deplasează paleta cu mouse-ul, cu degetul sau cu săgețile. Mingea ricoșează automat. Marginea stângă a paletei trimite mingea spre stânga, iar cea dreaptă spre dreapta.</p>
- <svg ref={surface} viewBox="0 0 600 420" tabIndex={0} aria-label="Masă de joc. Săgețile mută paleta, Shift și săgețile permit reglajul fin." className={styles.court}
- onKeyDown={e=>{if(["ArrowLeft","ArrowRight"].includes(e.key)){e.preventDefault();move(position.current+(e.key==="ArrowLeft"?-1:1)*(e.shiftKey?1:7));}}}
- onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);const b=e.currentTarget.getBoundingClientRect();move((e.clientX-b.left)/b.width*600);}}
- onPointerMove={e=>{const b=e.currentTarget.getBoundingClientRect();move((e.clientX-b.left)/b.width*600);}}>
- <rect width="600" height="420" rx="15" fill="#113b49"/><rect x="17" y="17" width="566" height="385" rx="3" fill="#146865" stroke="#dbf1de" strokeWidth="3"/>
- <path d="M300 18V401" stroke="#c5e1d7" opacity=".45" strokeWidth="2"/><path d="M8 210H592" stroke="#e7efde" strokeWidth="5" strokeDasharray="4 2"/>
- <circle cx={tx} cy={ty} r={flash?35:30} fill="#ffca50"/><circle cx={tx} cy={ty} r="20" fill="#e4683a"/><circle cx={tx} cy={ty} r="10" fill="#ffe9a7"/>
- {round&&!returning&&touching&&<path d={`M ${x} 360 l ${dx/34*1.9*68} -68`} stroke="#fff2b4" strokeWidth="3" strokeDasharray="5 5"/>}
- <g transform={`translate(${paddle} 363)`}><rect x="-6" y="4" width="12" height="39" rx="5" fill="#d9a879"/><ellipse cy="0" rx="34" ry="16" fill="#ce443d" stroke="#ffe5b0" strokeWidth="3"/></g>
- <circle cx={ballX+3} cy={y+4} r="8" fill="#092f39" opacity=".4"/><circle cx={ballX} cy={y} r="8" fill="#fff8e6" stroke="#bdc9bb"/>
- </svg><div className={styles.gameControls}><button type="button" disabled={pending} onClick={start}>{pending?"Minge în joc":round?"Mingea următoare":"Pornește mingea"}</button><span aria-live="polite">{notice}</span></div></div>;
+   animation=requestAnimationFrame(animate);
+   return ()=>cancelAnimationFrame(animation);
+ },[flight]);
+ const ball=flight?.frames[frame]??origin;
+ const trail=flight?.frames.slice(Math.max(0,frame-22),frame+1).map(p=>p.join(",")).join(" ");
+ const radians=angle*Math.PI/180, speed=180+3*power;
+ const guide=Array.from({length:11},(_,i)=>{const t=i*0.027;return [origin[0]-speed*Math.cos(radians)*t,origin[1]-speed*Math.sin(radians)*t+290*t*t].join(",");}).join(" ");
+ const ready=phase==="aim";
+ return <div className={styles.game}><h3>La pahar</h3><p>Alege unghiul și intensitatea. Lansează din dreapta și încearcă să trimiți mingea într-unul dintre cele trei pahare.</p>
+ <svg viewBox="0 0 600 340" className={styles.court} role="img" aria-label="Masă văzută din lateral, cu paharele în stânga și mingea în dreapta">
+ <defs><pattern id="wall" width="64" height="36" patternUnits="userSpaceOnUse"><rect width="64" height="36" fill="#f7f2ed"/><path d="M0 0H64M0 18H64M0 0V18M32 18V36" fill="none" stroke="#ded8d1"/></pattern></defs>
+ <rect width="600" height="340" fill="url(#wall)"/><path d="M32 308v36m531-36v36" stroke="#35444a" strokeWidth="10"/>
+ <rect x="4" y="300" width="592" height="12" rx="3" fill="#ba9468" stroke="#534d44"/>
+ {table?.cups.map(x=><g key={x}><path d={`M${x-20} 250h40l-6 49h-28z`} fill="#b73336" stroke="#69272a" strokeWidth="2"/><path d={`M${x-17} 263h34m-32 22h30`} stroke="#e67868" strokeWidth="2"/><ellipse cx={x} cy="250" rx="20" ry="3" fill="#622327" stroke="#f0a385" strokeWidth="2"/></g>)}
+ <g transform="rotate(27 550 253)"><rect x="546" y="254" width="10" height="39" rx="4" fill="#b89168"/><ellipse cx="550" cy="253" rx="20" ry="10" fill="#655083" stroke="#473451" strokeWidth="2"/></g>
+ {ready&&<polyline fill="none" points={guide} stroke="#62666b" strokeWidth="2.5" strokeDasharray="4 6"/>}
+ {trail&&<polyline fill="none" points={trail} stroke="#bd801f" strokeWidth="2" strokeDasharray="4 4"/>}
+ <circle cx={ball[0]} cy={ball[1]} r="6" fill="#ffcb43" stroke="#70471e" strokeWidth="1.6"/>
+ </svg>
+ <div className={styles.dates}><label>Unghi · {angle}°<input type="range" min="15" max="75" value={angle} disabled={!ready} onChange={e=>setAngle(Number(e.target.value))}/></label>
+ <label>Intensitate · {power}%<input type="range" min="10" max="100" value={power} disabled={!ready} onChange={e=>setPower(Number(e.target.value))}/></label></div>
+ <div className={styles.gameControls} style={{marginTop:"1rem"}}>{phase==="done"||phase==="error"?<button type="button" onClick={()=>setRound(r=>r+1)}>{phase==="done"?"Pregătește mingea următoare":"Reîncearcă"}</button>:<button type="button" disabled={!ready} onClick={launch}>{phase==="loading"?"Se așază paharele…":ready?"Lansează mingea":"Minge în joc"}</button>}<span aria-live="polite">{message}</span></div></div>;
 }
