@@ -156,8 +156,8 @@
 
 .page section { box-shadow:0 5px 18px rgba(24,50,53,.055); }
 .page .editionSection { background:linear-gradient(180deg,#fff,#f8fcfa); scroll-margin-top:1rem; }
-.page .editionSection h2, .page #istoric h2 { display:flex; align-items:center; gap:.65rem; margin-bottom:1rem; }
-.page .editionSection h2::before, .page #istoric h2::before { content:""; width:.38rem; height:1.5rem; border-radius:99px; background:linear-gradient(#39aa74,#9ce3a9); flex-shrink:0; }
+.page .editionSection h2, .page section[id="istoric"] h2 { display:flex; align-items:center; gap:.65rem; margin-bottom:1rem; }
+.page .editionSection h2::before, .page section[id="istoric"] h2::before { content:""; width:.38rem; height:1.5rem; border-radius:99px; background:linear-gradient(#39aa74,#9ce3a9); flex-shrink:0; }
 .editionGrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:.9rem; padding:0; margin:1rem 0 0; list-style:none; }
 .editionCard, .archivedEdition { position:relative; min-width:0; display:flex; flex-direction:column; align-items:flex-start; padding:1.15rem; border:1px solid #d3e5db; border-radius:1rem; background:linear-gradient(165deg,#fff,#f3faf6); box-shadow:0 6px 14px rgba(18,51,48,.055); overflow:hidden; }
 .editionCard::before, .archivedEdition::before { content:""; position:absolute; inset:0 0 auto; height:4px; background:linear-gradient(90deg,#248e66,#b2e9a7 70%,#f2c66b); }
