@@ -3,17 +3,30 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { byNextStart, dateLabel, editionUrl, listEditions, type ListedEdition } from "../../lib/beerPong";
+import { byNextStart, categoryLabels, dateLabel, editionUrl, listEditions, type ListedEdition } from "../../lib/beerPong";
 import { supabase } from "../../lib/supabaseClient";
 import Competition from "./Competition";
+import BeerPongArtwork from "../../components/BeerPongArtwork";
 import EditionForm from "./EditionForm";
 import styles from "./raffle.module.css";
 
 function EditionLinks({ items, archived }: { items: ListedEdition[]; archived?: boolean }) {
-  return <ul className={styles.editions}>{items.map(e => <li key={e.id}>
-    <div><Link href={editionUrl(e.id)}>{e.title}</Link>
-      <small>{archived ? dateLabel(e.ends) : e.state === "open" ? "Deschisă până la " + dateLabel(e.ends) : "Începe la " + dateLabel(e.starts)}</small></div>
-    <span>{e.participants} {e.participants === 1 ? "participant" : "participanți"} · {e.prize_count} {e.prize_count === 1 ? "premiu" : "premii"}</span>
+  return <ul className={styles.editionGrid}>{items.map(e => <li key={e.id} className={archived ? styles.archivedEdition : styles.editionCard}>
+    <div className={styles.editionCardTop}>
+      <span className={e.state === "open" ? styles.liveStatus : styles.editionStatus}>
+        {archived ? "EDIȚIE ÎNCHEIATĂ" : e.state === "open" ? "● ÎN DESFĂȘURARE" : "◷ PROGRAMATĂ"}
+      </span>
+      <span className={styles.prizeLabel}>★ {e.prize_count} {e.prize_count === 1 ? "premiu" : "premii"}</span>
+    </div>
+    <h3><Link href={editionUrl(e.id)}>{e.title}</Link></h3>
+    <p className={styles.editionDate}>
+      {archived ? "Încheiată la " + dateLabel(e.ends) : e.state === "open" ? "Deschisă până la " + dateLabel(e.ends) : "Începe la " + dateLabel(e.starts)}
+    </p>
+    <div className={styles.editionInfo}>
+      <span>{e.categories.map(c => categoryLabels[c] ?? c).join(" · ")}</span>
+      <span>{e.participants} {e.participants === 1 ? "participant" : "participanți"}</span>
+    </div>
+    <Link className={styles.editionAction} href={editionUrl(e.id)}>{archived ? "Vezi clasamentul" : e.state === "open" ? "Intră în joc" : "Vezi detaliile"} <span aria-hidden="true">↗</span></Link>
   </li>)}</ul>;
 }
 function CompetitionHub() {
@@ -75,19 +88,32 @@ function CompetitionHub() {
   }
   return <main className={styles.page}>
     <header className={styles.hero}>
-      <div className={styles.topline}><Link href="/">← PoliSport-TT</Link>
-        {authReady && !uid && <Link href={"/login?mode=login&beerpong=" + (valid ? selected : "1")}>Intră în cont</Link>}
+      <div className={styles.heroContent}>
+        <div className={styles.topline}><Link href="/">← PoliSport-TT</Link>
+          {authReady && !uid && <Link href={"/login?mode=login&beerpong=" + (valid ? selected : "1")}>Intră în cont</Link>}
+        </div>
+        <span className={styles.heroKicker}>POLISPORT · COMPETIȚIE INTERACTIVĂ</span>
+        <h1>Competiție <span>BeerPong</span></h1>
+        <p className={styles.heroSubtitle}>Țintește halba, aruncă mingea și transformă fiecare reușită într-un punct. Joacă, concurează și urmărește clasamentul live!</p>
+        <div className={styles.heroHighlights}>
+          <span>◎ Țintește</span><span>◉ Aruncă</span><span>★ Câștigă puncte</span>
+        </div>
+        <div className={styles.heroActions}>
+          <a href="#editii" className={styles.heroPrimary}>Vezi competițiile <span aria-hidden="true">↘</span></a>
+          <a href="#istoric" className={styles.heroSecondary}>Istoric și clasamente</a>
+        </div>
       </div>
-      <h1>Competiție BeerPong</h1>
-      <p>Țintește halba și adună reușite până la închiderea ediției.</p>
-      <a href="#istoric">Istoric și clasamente</a>
+      <div className={styles.heroVisual}>
+        <BeerPongArtwork className={styles.heroArtwork}/>
+        <span className={styles.heroSticker}>O MINGE · O ȚINTĂ</span>
+      </div>
     </header>
     {admin && <div className={styles.manage}><button type="button" aria-expanded={editing}
       onClick={() => setEditing(!editing)}>{editing ? "Închide formularul" : "Creează competiție"}</button></div>}
     {editing && admin && <EditionForm onPublish={published}/>}
     {error && <p role="alert">{error} <button type="button" onClick={refetch}>Reîncearcă</button></p>}
     {items === null && !error && <p role="status">Se încarcă edițiile…</p>}
-    {items && <section><h2>Competiții în desfășurare și programate</h2>
+    {items && <section id="editii" className={styles.editionSection}><h2>Competiții în desfășurare și programate</h2>
       {current.length ? <EditionLinks items={current}/> : <p>Momentan nu este programată nicio competiție BeerPong.</p>}
     </section>}
     <div id="editie" className={styles.anchor}>
