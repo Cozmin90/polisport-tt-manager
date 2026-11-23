@@ -7,6 +7,9 @@ import styles from "./raffle.module.css";
 type Table = { token: string; cups: number[]; hits: number; elapsed: number };
 type Flight = { frames: Point[]; score: number; bounces: number; wall_bounces?: number; hits: number };
 type Props = {
+  initialScore: number;
+  endsAt: string;
+  serverNow: string;
   serve: () => Promise<Table>;
   finish: (token: string, angle: number, power: number) => Promise<Flight>;
 };
@@ -20,12 +23,12 @@ function shotMessage(result: Flight) {
   return "Direct în halbă! +1 punct.";
 }
 
-export default function TargetGame({ serve, finish }: Props) {
+export default function TargetGame({ serve, finish, initialScore, endsAt, serverNow }: Props) {
   const [table, setTable] = useState<Table | null>(null);
   const [avatar, setAvatar] = useState<Avatar>("male");
   const [angle, setAngle] = useState(45);
   const [power, setPower] = useState(65);
-  const [hits, setHits] = useState(0);
+  const [hits, setHits] = useState(initialScore);
   const [flight, setFlight] = useState<Flight | null>(null);
   const [frame, setFrame] = useState(0);
   const [now, setNow] = useState(0);
@@ -35,6 +38,10 @@ export default function TargetGame({ serve, finish }: Props) {
   const clock = useRef(0);
   const locked = useRef(false);
   const mounted = useRef(true);
+  const deadline = useRef(Infinity);
+  useEffect(() => {
+    deadline.current = performance.now() + Date.parse(endsAt) - Date.parse(serverNow);
+  }, [endsAt, serverNow]);
   const prepare = useRef(serve);
   useEffect(() => { prepare.current = serve; }, [serve]);
   useEffect(() => {
@@ -45,15 +52,13 @@ export default function TargetGame({ serve, finish }: Props) {
   useEffect(() => {
     let active = true;
     setPhase("loading");
-    setMessage("");
-    setFlight(null);
-    setTable(null);
-    setFrame(0);
     const sent = performance.now();
     prepare.current().then(data => {
       if (!active) return;
       const received = performance.now();
       clock.current = (received + sent) / 2 - data.elapsed * 1000;
+      setFlight(null);
+      setFrame(0);
       setNow(received);
       setTable(data);
       setHits(data.hits);
@@ -65,8 +70,16 @@ export default function TargetGame({ serve, finish }: Props) {
     return () => { active = false; };
   }, [round]);
 
+  useEffect(() => {
+    if (phase !== "done") return;
+    const timer = window.setTimeout(() => {
+      if (performance.now() < deadline.current) setRound(previous => previous + 1);
+    }, 720);
+    return () => window.clearTimeout(timer);
+  }, [phase]);
+
   async function launch() {
-    if (!table || locked.current || phase !== "aim") return;
+    if (!table || locked.current || phase !== "aim" || performance.now() >= deadline.current) return;
     locked.current = true;
     setPhase("sending");
     setMessage("");
@@ -96,7 +109,6 @@ export default function TargetGame({ serve, finish }: Props) {
           setHits(flight.hits);
           setMessage(shotMessage(flight));
           setPhase("done");
-          locked.current = false;
           return;
         }
       }
@@ -112,6 +124,7 @@ export default function TargetGame({ serve, finish }: Props) {
   const radians = Math.min(75, Math.max(15, Math.round(angle + lean))) * Math.PI / 180;
   const speed = 180 + 3 * Math.min(100, Math.max(10, Math.round(power + .65 * amplitude * Math.sin(sway * 1.37))));
   const ready = phase === "aim";
+  const dizziness = Math.round(100 * amplitude / 14);
   const guide = ready ? Array.from({ length: 11 }, (_, i) => {
     const t = i * .027;
     return [origin[0] - speed * Math.cos(radians) * t, origin[1] - speed * Math.sin(radians) * t + 290 * t * t].join(",");
@@ -134,26 +147,30 @@ export default function TargetGame({ serve, finish }: Props) {
         </label>
       )}
     </fieldset>
-    <div className={styles.balance}>
-      <strong>Amețeală</strong>
-      <meter min="0" max="14" value={amplitude} aria-label="Nivel de amețeală"
-        aria-valuetext={hits > 5 ? "Personajul s-a înverzit la față" : hits + " reușite"}/>
-      <span>{hits} {hits === 1 ? "reușită" : "reușite"}{hits > 5 && " · Față înverzită"}</span>
-    </div>
     <div className={styles.court}>
       <MugCourt avatar={avatar} hits={hits} lean={lean} release={release} mug={table?.cups[0]}
         ball={ball} trail={trail} guide={guide} wallImpactY={phase === "flying" ? wallContact?.[1] : undefined}
-        landed={phase === "done" && Boolean(flight?.score)}/>
+        landed={(phase === "done" || phase === "loading") && Boolean(flight?.score)}/>
+      <div className={styles.hud}>
+        <div className={styles.readouts}>
+          <div className={styles.score}><span>Scor</span><strong>{hits}</strong></div>
+          <div className={styles.dizziness}>
+            <span>Amețeală <b>{dizziness}%</b></span>
+            <meter aria-label="Amețeală" min={0} max={100} value={dizziness}/>
+          </div>
+        </div>
+        <button className={styles.throwButton} type="button"
+          disabled={!ready && phase !== "error"}
+          aria-label={phase === "error" ? "Reîncearcă pregătirea mingii" : "Aruncă mingea"}
+          onClick={phase === "error" ? () => { setMessage(""); setRound(r => r + 1); } : launch}>
+          {phase === "error" ? "Reîncearcă" : "Aruncă"}
+        </button>
+      </div>
     </div>
+    <p role="status" className={styles.feedback}>{message}</p>
     <div className={styles.dates}>
       <label>Unghi · {angle}°<input type="range" min="15" max="75" value={angle} disabled={!ready} onChange={e => setAngle(Number(e.target.value))}/></label>
       <label>Intensitate · {power}%<input type="range" min="10" max="100" value={power} disabled={!ready} onChange={e => setPower(Number(e.target.value))}/></label>
-    </div>
-    <div className={styles.gameControls}>
-      {phase === "done" || phase === "error" ?
-        <button type="button" onClick={() => setRound(r => r + 1)}>{phase === "done" ? "Pregătește mingea următoare" : "Reîncearcă"}</button> :
-        <button type="button" disabled={!ready} onClick={launch}>{phase === "loading" ? "Se așază halba…" : ready ? "Lansează mingea" : "Minge în joc"}</button>}
-      <span aria-live="polite">{message}</span>
     </div>
   </div>;
 }
