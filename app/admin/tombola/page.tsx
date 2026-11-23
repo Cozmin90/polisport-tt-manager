@@ -4,7 +4,7 @@ import { supabase } from "../../../lib/supabaseClient";
 import TargetGame from "./TargetGame";
 import styles from "./raffle.module.css";
 
-type Edition = { id:string; title:string; starts:string; ends:string; prizes:number[]; roles:string[]; categories:string[] };
+type Edition = { id:string; title:string; starts:string; ends:string; prizes:number[]; roles:string[]; categories:string[]; score_by_hits:boolean };
 type Row = {rank:number; name:string; points:number; serves:number; mine:boolean; voucher:number|null};
 type View = {event:Edition; board:Row[]; open:boolean; closed:boolean; now:string};
 const categories:Record<string,string>={HOBBY:"Hobby",ADVANCED:"Avansați",ELITE:"Elite"};
@@ -91,10 +91,10 @@ export default function Raffle(){
  {[1,2,3,4,5].map(n=><div key={n}><label><input type="checkbox" checked={prizes.includes(n)} onChange={()=>setPrizes(prizes.includes(n)?prizes.filter(x=>x!==n):[...prizes,n].sort())}/>Voucher {numberLabel(n)}</label>{prizes.includes(n)&&<input aria-label={"Model voucher "+n} type="file" accept="image/png,image/jpeg" onChange={e=>{const f=e.target.files?.[0];setFiles(current=>{const next={...current};if(f)next[n]=f;else delete next[n];return next;});}}/>}</div>)}</fieldset>
  <button disabled={busy||!levels.length||!roles.length||!prizes.length}>Publică ediția de test</button></form>}
  {view&&view.event.id===id&&<><section><small>{view.closed?"ÎNCHEIATĂ":view.open?"ÎN DESFĂȘURARE":"PROGRAMATĂ"}</small><h2>{view.event.title}</h2><p>{dateLabel(view.event.starts)} – {dateLabel(view.event.ends)} · Locuri premiate: {view.event.prizes.length}</p>
- <p>Categorii admise: {view.event.categories.map(k=>categories[k]).join(", ")}. Nimerește halba direct pentru 60 de puncte sau după ricoșeu pe masă pentru 100 de puncte. La egalitate are prioritate cine a atins primul totalul. Pentru un premiu trebuie să lansezi cel puțin o minge.</p>
+ <p>Categorii admise: {view.event.categories.map(k=>categories[k]).join(", ")}. {view.event.score_by_hits ? "Fiecare minge intrată în halbă valorează un punct." : "Această ediție a folosit punctajul anterior."} La egalitate are prioritate cine a atins primul totalul. Pentru un premiu trebuie să lansezi cel puțin o minge.</p>
  {view.open&&!mine&&<button disabled={busy} onClick={()=>void run(async()=>{const v=await rpc<View>("join",{id});revision.current++;setView(v);})}>Înscrie-mă</button>}
- {view.open&&mine&&<><TargetGame key={id} serve={()=>rpc("cups",{id})} finish={(token,angle,power)=>rpc("throw",{id,token,angle,power})}/><p>Total: {mine.points} puncte · Locul {mine.rank}</p></>}
+ {view.open&&mine&&<><TargetGame key={id} serve={()=>rpc("cups",{id})} finish={(token,angle,power)=>rpc("throw",{id,token,angle,power})}/><p>Total: {mine.points} {mine.points===1?"punct":"puncte"} · Locul {mine.rank}</p></>}
  {mine?.voucher&&<><h3>Felicitări! Ai câștigat voucherul nr. {numberLabel(mine.voucher)}!</h3><button disabled={busy} onClick={()=>void run(()=>download(id,mine.name))}>Descarcă voucherul de test (PNG)</button></>}
- </section><section><h2>{view.closed?"Clasament final":"Clasament live"}</h2>{view.board.length?<table><thead><tr><th>Loc</th><th>Participant</th><th>Puncte</th><th>Status</th></tr></thead><tbody>{view.board.map(r=><tr key={r.rank}><td>{r.rank}</td><td>{r.name}</td><td>{r.points}</td><td>{r.voucher?"Voucher "+numberLabel(r.voucher):view.closed?"Fără premiu":r.serves?"În joc":"Înscris"}</td></tr>)}</tbody></table>:<p>Niciun participant înscris.</p>}</section></>}
+ </section><section><h2>{view.closed?"Clasament final":"Clasament live"}</h2>{view.board.length?<table><thead><tr><th>Loc</th><th>Participant</th><th>{view.event.score_by_hits?"Reușite":"Puncte"}</th><th>Status</th></tr></thead><tbody>{view.board.map(r=><tr key={r.rank}><td>{r.rank}</td><td>{r.name}</td><td>{r.points}</td><td>{r.voucher?"Voucher "+numberLabel(r.voucher):view.closed?"Fără premiu":r.serves?"În joc":"Înscris"}</td></tr>)}</tbody></table>:<p>Niciun participant înscris.</p>}</section></>}
  </>}</main>;
 }
