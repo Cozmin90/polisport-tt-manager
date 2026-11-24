@@ -578,14 +578,14 @@ export default function HomePage() {
     const IBAN = "RO77 REVO 0000 1310 3910 2276";
 
     return (
-        <main className="min-h-screen" style={{ background: "var(--ps-bg)" }}>
+        <main className="ps-home min-h-screen" style={{ background: "var(--ps-bg)" }}>
             {/* Top bar */}
             <div className="w-full" style={{ background: "var(--ps-bg)" }}>
                 <div className="mx-auto max-w-6xl px-4 pt-4">
-                    <div className="rounded-2xl border shadow-sm" style={{ borderColor: "var(--ps-border)", background: "var(--ps-card)", boxShadow: "0 3px 6px rgba(0,0,0,0.4)" }}>
-                        <div className="px-4 py-1">
+                    <div className="ps-home-header rounded-2xl border" style={{ borderColor: "var(--ps-border)", background: "var(--ps-card)" }}>
+                        <div className="ps-home-header-inner px-4 py-1">
                             {/* Action bar */}
-                            <div className="flex justify-end gap-1 flex-wrap pt-1">
+                            <nav aria-label="Navigare principală" className="ps-home-nav flex justify-end gap-1 flex-wrap pt-1">
                                 {userEmail ? (
                                     <>
                                         <Link href="/account" className="ps-btn ps-btn-outline text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:bg-black/5">
@@ -615,11 +615,11 @@ export default function HomePage() {
                                 <Link href="/championship/upb" className="ps-btn ps-btn-outline text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:bg-black/5">
                                     Campionat UPB
                                 </Link>
-                            </div>
+                            </nav>
 
                             {/* Branding */}
-                            <div className="mt-2 flex items-center gap-4">
-                                <div className="flex items-center gap-2 min-w-[220px]">
+                            <div className="ps-home-brand mt-2 flex items-center gap-4">
+                                <div className="ps-home-logo flex items-center gap-2 min-w-[220px]">
                                     <Image
                                         src="/Logo_POLISPORT_TT_v1.png"
                                         alt="PoliSport Table Tennis"
@@ -630,7 +630,7 @@ export default function HomePage() {
                                     />
                                 </div>
 
-                                <div className="min-w-[320px]">
+                                <div className="ps-home-title min-w-[320px]">
                                     <div className="text-3xl lg:text-4xl font-extrabold tracking-tight" style={{ color: "var(--ps-primary)" }}>
                                         PoliSport Table Tennis
                                     </div>
@@ -642,11 +642,11 @@ export default function HomePage() {
                         </div>
                     </div>
 
-                    <div className="mx-auto max-w-6xl px py-6">
+                    <div className="ps-home-content mx-auto max-w-6xl py-6">
                         {/* Hero */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="ps-home-hero grid grid-cols-1 lg:grid-cols-2 gap-6">
                             {/* Left: Player hub */}
-                            <div className="ps-card p-6">
+                            <div className="ps-card ps-home-panel p-6">
                                 <div className="flex items-start justify-between gap-4">
                                     <div>
                                         <div className="text-xl font-extrabold" style={{ color: "var(--ps-primary)" }}>
@@ -664,7 +664,7 @@ export default function HomePage() {
                                 </div>
 
                                 {/* Status boxes */}
-                                <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="ps-home-status mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="rounded-2xl border p-4" style={{ borderColor: "var(--ps-border)", background: "white" }}>
                                         <div className="text-xs font-extrabold tracking-wide" style={{ color: "var(--ps-muted)" }}>
                                             STATUS
@@ -719,7 +719,7 @@ export default function HomePage() {
                                     <div className="text-base font-extrabold" style={{ color: "var(--ps-primary)" }}>
                                         Ești înscris la următoarele turnee:
                                     </div>
-                                    <div className="mt-2 space">
+                                    <div className="mt-2 space-y-2">
                                         {myUpcoming.length === 0 ? (
                                             <div className="text-sm" style={{ color: "var(--ps-muted)" }}>
                                                 Momentan nu ești înscris la niciun turneu viitor.
@@ -751,7 +751,7 @@ export default function HomePage() {
                             </div>
 
                             {/* Right: Contribution */}
-                            <div className="ps-card p-6">
+                            <div className="ps-card ps-home-panel p-6">
                                 <div className="flex items-start justify-between gap-4">
                                     <div>
                                         <div className="text-base font-extrabold" style={{ color: "var(--ps-primary)" }}>
@@ -785,7 +785,7 @@ export default function HomePage() {
                                 </div>
 
                                 {/* Stats */}
-                                <div className="mt-6 grid grid-cols-3 gap-3">
+                                <div className="ps-home-stats mt-6 grid grid-cols-3 gap-3">
                                     <div className="rounded-2xl border p-4 text-center" style={{ borderColor: "var(--ps-border)", background: "white" }}>
                                         <div className="text-2xl font-extrabold" style={{ color: "var(--ps-primary)" }}>🏆</div>
                                         <div className="mt-1 text-2xl font-extrabold" style={{ color: "var(--ps-primary)" }}>
@@ -820,7 +820,7 @@ export default function HomePage() {
                         </div>
 
                         <div className="mt-8">
-                            <div className="flex items-center justify-between gap-3">
+                            <div className="ps-section-heading flex items-center justify-between gap-3">
                                 <h2 className="text-base font-extrabold" style={{ color: "var(--ps-primary)" }}>
                                     Planificare Turnee
                                 </h2>
@@ -868,7 +868,7 @@ export default function HomePage() {
                                         const canShowWithdraw = !!userId && regOpen && reg?.status === "REGISTERED";
 
                                         return (
-                                            <div key={t.id} className="ps-card p-5">
+                                            <div key={t.id} className="ps-card ps-event-card p-5">
                                                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                                                     <div className="min-w-0">
                                                         <div className="text-base font-extrabold" style={{ color: "var(--ps-primary)" }}>
@@ -907,7 +907,7 @@ export default function HomePage() {
                                                             ) : null}
                                                         </div>
 
-                                                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                        <div className="ps-event-facts mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
                                                             <div className="rounded-2xl border p-3" style={{ borderColor: "var(--ps-border)" }}>
                                                                 <div className="text-xs font-semibold uppercase" style={{ color: "var(--ps-muted)" }}>
                                                                     Tip
@@ -935,7 +935,7 @@ export default function HomePage() {
                                                         </div>
                                                     </div>
 
-                                                    <div className="lg:text-right text-sm" style={{ color: "var(--ps-muted)" }}>
+                                                    <div className="ps-event-details lg:text-right text-sm" style={{ color: "var(--ps-muted)" }}>
                                                         <div>
                                                             <b>Format:</b>{" "}
                                                             {t.format === "LOWER_UPPER_KO"
@@ -945,7 +945,7 @@ export default function HomePage() {
                                                                     : t.format}
                                                         </div>
                                                         <div>
-                                                            <b>Status:</b> {prettyStatus(t.status)}
+                                                            <span className="ps-event-status" data-status={t.status}>{prettyStatus(t.status)}</span>
                                                         </div>
 
                                                         {typeof t.max_players === "number" && <div><b>Max:</b> {t.max_players}</div>}
@@ -958,6 +958,12 @@ export default function HomePage() {
                                                         )}
 
                                                         {typeof t.spots_left === "number" && <div><b>Rămase:</b> {t.spots_left}</div>}
+
+                                                        {typeof t.max_players === "number" && t.max_players > 0 && typeof t.registered_count === "number" && (
+                                                            <div className="ps-capacity" role="progressbar" aria-label="Locuri ocupate" aria-valuemin={0} aria-valuemax={t.max_players} aria-valuenow={Math.min(t.max_players, Math.max(0, t.registered_count))}>
+                                                                <span style={{ width: `${Math.min(100, Math.max(0, t.registered_count / t.max_players * 100))}%` }} />
+                                                            </div>
+                                                        )}
 
                                                         <div className="mt-1">
                                                             <b>Starea mea:</b> {reg ? reg.status : "—"}
@@ -985,7 +991,7 @@ export default function HomePage() {
                                                             </div>
                                                         ) : null}
 
-                                                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                                                        <div className="ps-event-actions mt-4 flex flex-wrap items-center justify-between gap-3">
                                                         <div className="flex flex-wrap gap-2">
                                                             {canShowJoin && (
                                                                 <button onClick={() => registerToTournament(t)} className="ps-btn ps-btn-primary text-sm transition-all hover:-translate-y-[1px] hover:shadow-md hover:brightness-95">

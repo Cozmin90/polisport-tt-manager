@@ -549,7 +549,7 @@ export default function AccountPage() {
     }
 
     return (
-        <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
+        <div className="ps-account-page" style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <h1 style={{ margin: 0 }}>Contul meu</h1>
                 <div style={{ marginLeft: "auto" }}>
@@ -587,7 +587,7 @@ export default function AccountPage() {
                     </div>
                 ) : (
                     <div style={{ display: "flex", gap: 16, alignItems: "stretch", flexWrap: "wrap", }}>
-                        <div style={{ flex: "1 1 520px" }}>
+                        <div style={{ flex: "1 1 520px", minWidth: 0 }}>
                             <div style={{ display: "grid", gap: 10 }}>
                                 <Row label="Nume" value={name} />
                                 <Row label="Email (Auth)" value={authEmail ?? "—"} />
@@ -1010,7 +1010,7 @@ export default function AccountPage() {
                             </div>
                         </div>
 
-                        <div style={{ flex: "0 1 360px", minWidth: 320 }}>
+                        <div style={{ flex: "0 1 360px", minWidth: 0, maxWidth: "100%" }}>
                             <div style={smallCard}>
                                 <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
                                     <div style={{ fontWeight: 900, fontSize: 16 }}>Palmares</div>

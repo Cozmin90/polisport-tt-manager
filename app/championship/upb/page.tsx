@@ -471,7 +471,7 @@ export default function ChampionshipPage() {
   const activeRows = section === "faculties" ? facultyStandings : individualStandings;
 
   return (
-    <main className="min-h-screen" style={{ background: "var(--ps-bg)" }}>
+    <main className="ps-championship min-h-screen" style={{ background: "var(--ps-bg)" }}>
       <div className="mx-auto max-w-6xl px-4 py-6">
         <div
           className="rounded-3xl border p-6 shadow-sm"
@@ -678,7 +678,7 @@ export default function ChampionshipPage() {
                 Nu există încă suficiente date pentru acest clasament.
               </div>
             ) : section === "faculties" ? (
-              <div className="mt-6 overflow-x-auto">
+              <div className="ps-table-scroll mt-6 overflow-x-auto" role="region" aria-label="Clasament campionat" tabIndex={0}>
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--ps-border)", textAlign: "left" }}>
@@ -705,7 +705,7 @@ export default function ChampionshipPage() {
                 </table>
               </div>
             ) : (
-              <div className="mt-6 overflow-x-auto">
+              <div className="ps-table-scroll mt-6 overflow-x-auto" role="region" aria-label="Clasament campionat" tabIndex={0}>
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--ps-border)", textAlign: "left" }}>

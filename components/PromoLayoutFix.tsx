@@ -83,7 +83,9 @@ export default function PromoLayoutFix() {
         }
 
         .ps-card.ps-promo-active > :nth-child(2) > div {
-          padding: 0.65rem 0.35rem !important;
+          padding: 0.65rem 0.25rem !important;
+          min-width: 0;
+          overflow-wrap: anywhere;
         }
 
         .ps-card.ps-promo-active > :nth-child(n+3) img {

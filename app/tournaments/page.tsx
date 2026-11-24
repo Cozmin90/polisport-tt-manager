@@ -55,6 +55,7 @@ export default function PublicTournamentsHistoryPage() {
 
     return (
         <main
+            className="ps-history"
             style={{
                 minHeight: "100vh",
                 background: "var(--ps-bg, #f6f7fb)",
@@ -120,7 +121,7 @@ export default function PublicTournamentsHistoryPage() {
                                     }}
                                 >
                                     <div
-                                        className="ps-card"
+                                        className="ps-card ps-history-event"
                                         style={{
                                             padding: 14,
                                             borderRadius: 18,
@@ -139,7 +140,7 @@ export default function PublicTournamentsHistoryPage() {
                                         }}
                                     >
                                         <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "baseline", flexWrap: "wrap" }}>
-                                            <div style={{ minWidth: 240 }}>
+                                            <div style={{ minWidth: 0, flex: "1 1 240px", overflowWrap: "anywhere" }}>
                                                 <div style={{ fontWeight: 900, fontSize: 15 }}>{t.title}</div>
                                                 <div style={{ opacity: 0.88, fontSize: 12.5, marginTop: 4 }}>
                                                     {t.start_at ? prettyDate(t.start_at) : "—"} • {t.location ?? "—"}

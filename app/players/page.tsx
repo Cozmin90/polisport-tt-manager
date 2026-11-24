@@ -230,7 +230,7 @@ export default function PlayersDirectoryPage() {
     }, [sorted]);
 
     return (
-        <div style={{ padding: 18, maxWidth: 1280, margin: "0 auto" }}>
+        <div className="ps-players-page" style={{ padding: 18, maxWidth: 1280, margin: "0 auto" }}>
             <div
                 style={{
                     display: "flex",
@@ -347,7 +347,7 @@ export default function PlayersDirectoryPage() {
                                 <span style={{ opacity: 0.6, fontSize: 14 }}>({list.length})</span>
                             </h2>
 
-                            <div
+                            <div className="ps-player-table ps-table-scroll" role="region" aria-label={`Jucători ${catLabels[cat]}`} tabIndex={0}
                                 style={{
                                     borderRadius: 12,
                                     border: "1px solid rgba(0,0,0,0.12)",
