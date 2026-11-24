@@ -2212,7 +2212,7 @@ export default function AdminTournamentPage() {
 
     if (loading) return <main style={{ padding: 24 }}>Se încarcă...</main>;
     return (
-        <main className="min-h-screen">
+        <main className="ps-tournament-detail min-h-screen">
             {!isAdmin ? (
                 <style>{`\n                    /* Read-only view: hide admin action buttons */\n                    .admin-only, [data-admin=\"1\"] { display: none !important; }\n                    button { display: none !important; }\n                `}</style>
             ) : null}
@@ -2546,7 +2546,7 @@ export default function AdminTournamentPage() {
 
                                     return (
                                         <div key={g.id} className="ps-card p-4">
-                                            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
                                                 <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
                                                     <div style={{ fontWeight: 900, fontSize: 15 }}>{g.name}</div>
                                                     {groupMatches.length > 0 ? (
@@ -2571,6 +2571,7 @@ export default function AdminTournamentPage() {
                                                 </div>
                                             </div>
 
+                                            <div className="ps-table-scroll" role="region" aria-label="Clasament grupă" tabIndex={0}>
                                             <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10, fontSize: 13 }}>
                                                 <thead>
                                                     <tr>
@@ -2609,6 +2610,7 @@ export default function AdminTournamentPage() {
                                                         })}
                                                 </tbody>
                                             </table>
+                                            </div>
 
                                             <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
                                                 Tie-break: Victorii → Mini-clasament meciuri directe (2+) → Setaveraj overall → Seturi overall
@@ -2728,6 +2730,7 @@ export default function AdminTournamentPage() {
                                                 </div>
                                             )}
 
+                                            <div className="ps-table-scroll" role="region" aria-label="Clasament grupă" tabIndex={0}>
                                             <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8, fontSize: 13 }}>
                                                 <thead>
                                                     <tr>
@@ -2766,6 +2769,7 @@ export default function AdminTournamentPage() {
                                                         })}
                                                 </tbody>
                                             </table>
+                                            </div>
 
                                             {/* Meciuri - în interiorul grupei (superioare) */}
                                             {(() => {

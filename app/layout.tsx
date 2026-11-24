@@ -4,6 +4,7 @@ import BrandingEnhancerGuard from "../components/BrandingEnhancerGuard";
 import PromoLayoutFix from "../components/PromoLayoutFix";
 import "./globals.css";
 import "./mobile-tournament-fixes.css";
+import "./ui-polish.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

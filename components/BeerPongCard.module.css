@@ -45,3 +45,13 @@
 }
 @media (max-width:380px) { .layout { grid-template-columns:1fr; } .artwork { display:none; } }
 @media (prefers-reduced-motion:reduce) { .primary { transition:none; } .primary:hover { transform:none; } }
+
+/* Keep touch targets comfortable and avoid squeezed copy on narrow screens. */
+@media (max-width:480px) {
+ .layout { grid-template-columns: minmax(0,1fr); }
+ .artwork { display:block; width:min(60%, 180px); max-height:100px; margin:.25rem auto 0; }
+ .actions { align-items:stretch; gap:.45rem; }
+ .primary,.secondary { min-height:44px; display:inline-flex; align-items:center; justify-content:center; text-align:center; }
+ .primary { flex:1 1 100%; }
+ .secondary { flex:1 1 100%; }
+}
