@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { byNextStart, categoryLabels, dateLabel, editionUrl, listEditions, type ListedEdition } from "../../lib/beerPong";
 import { supabase } from "../../lib/supabaseClient";
 import Competition from "./Competition";
+import PracticeMode from "./PracticeMode";
 import BeerPongArtwork from "../../components/BeerPongArtwork";
 import EditionForm from "./EditionForm";
 import styles from "./raffle.module.css";
@@ -99,8 +100,8 @@ function CompetitionHub() {
           <span>◎ Țintește</span><span>◉ Aruncă</span><span>★ Câștigă puncte</span>
         </div>
         <div className={styles.heroActions}>
-          <a href="#editii" className={styles.heroPrimary}>Vezi competițiile <span aria-hidden="true">↘</span></a>
-          <a href="#istoric" className={styles.heroSecondary}>Istoric și clasamente</a>
+          <a href="#demo" className={styles.heroPrimary}>Joacă demo gratuit <span aria-hidden="true">↘</span></a>
+          <a href="#editii" className={styles.heroSecondary}>Competiții și clasamente</a>
         </div>
       </div>
       <div className={styles.heroVisual}>
@@ -111,6 +112,7 @@ function CompetitionHub() {
     {admin && <div className={styles.manage}><button type="button" aria-expanded={editing}
       onClick={() => setEditing(!editing)}>{editing ? "Închide formularul" : "Creează competiție"}</button></div>}
     {editing && admin && <EditionForm onPublish={published}/>}
+    <PracticeMode/>
     {error && <p role="alert">{error} <button type="button" onClick={refetch}>Reîncearcă</button></p>}
     {items === null && !error && <p role="status">Se încarcă edițiile…</p>}
     {items && <section id="editii" className={styles.editionSection}><h2>Competiții în desfășurare și programate</h2>
