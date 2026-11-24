@@ -8,8 +8,8 @@ type Table = { token: string; cups: number[]; hits: number; elapsed: number };
 type Flight = { frames: Point[]; score: number; bounces: number; wall_bounces?: number; hits: number };
 type Props = {
   initialScore: number;
-  endsAt: string;
-  serverNow: string;
+  endsAt?: string;
+  serverNow?: string;
   serve: () => Promise<Table>;
   finish: (token: string, angle: number, power: number) => Promise<Flight>;
 };
@@ -40,7 +40,9 @@ export default function TargetGame({ serve, finish, initialScore, endsAt, server
   const mounted = useRef(true);
   const deadline = useRef(Infinity);
   useEffect(() => {
-    deadline.current = performance.now() + Date.parse(endsAt) - Date.parse(serverNow);
+    deadline.current = endsAt && serverNow
+      ? performance.now() + Date.parse(endsAt) - Date.parse(serverNow)
+      : Infinity; // Permanent local demo has no end date.
   }, [endsAt, serverNow]);
   const prepare = useRef(serve);
   useEffect(() => { prepare.current = serve; }, [serve]);

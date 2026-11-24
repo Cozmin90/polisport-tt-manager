@@ -29,10 +29,10 @@ export default function BeerPongCard() {
         <div className={styles.content}>
           <span className={styles.kicker}>POLISPORT · ARCADE</span>
           <h3 className={styles.title}>Competiție BeerPong</h3>
-          <p className={styles.subtitle}>O minge, o halbă și o țintă. Intră în joc, adună puncte și urcă în clasament!</p>
+          <p className={styles.subtitle}>O minge, o halbă și o țintă. Exersează oricând, fără cont, sau intră într-o competiție!</p>
           <div className={styles.actions}>
-            <Link href="/beerpong" className={styles.primary}>Descoperă BeerPong <span aria-hidden="true">↗</span></Link>
-            <Link href="/beerpong#istoric" className={styles.secondary}>Istoric și clasamente</Link>
+            <Link href="/beerpong#demo" className={styles.primary}>Joacă demo gratuit <span aria-hidden="true">↗</span></Link>
+            <Link href="/beerpong#editii" className={styles.secondary}>Competiții și clasamente</Link>
           </div>
         </div>
         <BeerPongArtwork className={styles.artwork} />
@@ -61,7 +61,7 @@ export default function BeerPongCard() {
             </div>
           )}
         </div>
-      ) : <p className={styles.empty}>Următoarea ediție va fi afișată aici când este publicată.</p>}
+      ) : <p className={styles.empty}>Nu există ediții active? Poți juca demo oricând, fără cont și fără limită de timp.</p>}
     </section>
   );
 }
