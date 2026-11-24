@@ -559,6 +559,16 @@ export default function AccountPage() {
                 </div>
             </div>
 
+            {authUid && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 mb-4">
+                <Link href="/training#programarile-mele" className="ps-card p-4 block">
+                    <b style={{color:"var(--ps-primary)"}}>Antrenamentele mele</b>
+                    <div className="text-sm mt-1" style={{color:"var(--ps-muted)"}}>Programări, cereri și istoric →</div>
+                </Link>
+                <Link href="/training#voucherele-mele" className="ps-card p-4 block" style={{background:"#fff7e2",borderColor:"#d9b35b"}}>
+                    <b style={{color:"#795313"}}>🎟 Voucherele mele</b>
+                    <div className="text-sm mt-1" style={{color:"#795313"}}>Disponibile, rezervate și utilizate →</div>
+                </Link>
+            </div>}
             {authUid ? <PrivacySettings key={authUid} userId={authUid} /> : null}
 
             {errorText ? (
