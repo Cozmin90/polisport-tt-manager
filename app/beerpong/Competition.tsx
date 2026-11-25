@@ -101,6 +101,7 @@ export default function Competition({ id, signedIn, onClose }: Props) {
       {mine?.voucher && <div className={styles.winner}>
         <h3>Felicitări! Ai câștigat voucherul nr. {serialLabel(mine.voucher)}!</h3>
         <button disabled={busy} onClick={() => void perform(() => downloadVoucher(id))}>Descarcă voucherul (PNG)</button>
+        <p><Link href="/training#voucherele-mele">Folosește voucherul pentru un antrenament →</Link></p>
       </div>}
       {closed && !signedIn && <Link href={"/login?mode=login&beerpong=" + id}>Intră în cont pentru a vedea premiul tău</Link>}
     </section>
