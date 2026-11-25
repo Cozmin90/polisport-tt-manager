@@ -1,6 +1,7 @@
 "use client";
 
 import BeerPongCard from "../components/BeerPongCard";
+import { TrainingHomeCard } from "../components/TrainingNotifications";
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
@@ -835,16 +836,7 @@ export default function HomePage() {
                                 ) : null}
                             </div>
 
-                            <Link href="/training" className="ps-card mt-4 block p-5" style={{ background: "linear-gradient(120deg,#153d31,#267253)", color: "white", borderColor: "#327657" }}>
-                                <div className="flex flex-wrap items-center justify-between gap-3">
-                                    <div className="min-w-0">
-                                        <div className="text-xs font-bold tracking-widest" style={{color:"#c9e9c6"}}>POLISPORT TRAINING</div>
-                                        <div className="mt-1 text-2xl font-extrabold">Antrenamente</div>
-                                        <p className="mt-2 text-sm" style={{color:"#e4f6e8"}}>Rezervă un antrenament individual sau de grup. Poți folosi și voucherele tale.</p>
-                                    </div>
-                                    <span className="ps-btn" style={{background:"#d6f2be",color:"#183d2a"}}>Vezi intervalele →</span>
-                                </div>
-                            </Link>
+                            <TrainingHomeCard key={userId??"guest"} uid={userId}/>
                             <BeerPongCard/>
 
                             {loading ? (
