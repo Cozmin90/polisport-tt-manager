@@ -484,6 +484,8 @@ export default function HomePage() {
 
     async function withdrawFromTournament(t: Tournament) {
         if (!userId) return;
+        const confirmed = window.confirm(`Sigur vrei să te retragi din turneul „${t.title ?? "Turneu"}”?\n\nLocul tău va deveni disponibil pentru alt participant. Dacă retragerea este târzie, se pot aplica penalizările prevăzute în regulament.\n\nApasă OK pentru a confirma retragerea sau Anulare pentru a rămâne înscris.`);
+        if (!confirmed) return;
 
         const { error } = await supabase
             .from("registrations")
